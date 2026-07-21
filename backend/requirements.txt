@@ -1,0 +1,18 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+pydantic-settings==2.5.2
+anthropic==0.34.2
+python-multipart==0.0.9
+pypdf==5.0.1
+python-docx==1.1.2
+httpx==0.27.2
+
+# Optional local-model path (Ollama) — no extra package needed,
+# calls go through plain httpx to http://localhost:11434
+
+# Layer 5 (voice/avatar) — add when you wire these in:
+edge-tts
+# (LivePortrait is invoked as an external process/binary in your existing pipeline)
+groq
+openai
