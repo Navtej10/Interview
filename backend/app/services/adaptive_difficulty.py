@@ -6,28 +6,18 @@ from app.models.schemas import Difficulty, InterviewState
 
 _DIFFICULTY_ORDER = [Difficulty.easy, Difficulty.medium, Difficulty.hard]
 
-def _has_struggled_consecutively(state: InterviewState, n: int = 2) -> bool:
+def should_consider_early_section_exit(state: InterviewState, n: int = 3) -> bool:
     """
-    Deterministic heuristic to guess if the candidate struggled on N consecutive turns,
-    by examining the transcript directly.
+    Surfaces a signal if the candidate has sustained struggle on the easiest difficulty.
+    If we've dropped to 'easy' and still get 'simplify' (recorded as 'poor' quality)
+    for N consecutive turns, we should probably exit the section early rather than
+    keeping them stuck at 'easy' indefinitely.
     """
-    candidate_turns = [t for t in state.transcript if t.role == "candidate"]
-    if len(candidate_turns) < n:
+    if len(state.performance_notes) < n:
         return False
-
-    struggle_phrases = [
-        "don't know", "not sure", "not familiar", "forgot", 
-        "can't remember", "no idea", "haven't used"
-    ]
-    
-    for turn in candidate_turns[-n:]:
-        text = turn.content.lower()
-        if not any(phrase in text for phrase in struggle_phrases) and len(text.split()) > 5:
-            # If they didn't use a struggle phrase and wrote more than 5 words, 
-            # assume no obvious struggle
-            return False
-            
-    return True
+        
+    recent_notes = state.performance_notes[-n:]
+    return all(note.quality == "poor" and note.difficulty == Difficulty.easy for note in recent_notes)
 
 def next_difficulty(current: Difficulty, strategy: str, section_target: Difficulty, state: InterviewState) -> tuple[Difficulty, bool]:
     """
@@ -47,23 +37,31 @@ def next_difficulty(current: Difficulty, strategy: str, section_target: Difficul
         # Nudge down one step but never below "easy"
         if current_idx > 0:
             new_idx -= 1
-    elif strategy in ("pivot", "follow_up_tangent"):
-        # Hold steady unless they struggled on 2 consecutive turns
-        if _has_struggled_consecutively(state, 2):
-            if current_idx > 0:
-                new_idx -= 1
+    # "pivot" and "follow_up_tangent" hold difficulty steady
 
     # Enforce bounds
     new_idx = max(0, min(len(_DIFFICULTY_ORDER) - 1, new_idx))
     new_diff = _DIFFICULTY_ORDER[new_idx]
     
-    # Check early exit condition:
-    # "never let difficulty stay below section.target_difficulty by more than one step for more than 2 consecutive turns"
-    # To check this purely deterministically without schema changes, we can look at whether the new difficulty
-    # is still below (target - 1) AND if the candidate has been struggling for > 2 turns.
-    consider_early_exit = False
-    if new_idx < target_idx - 1:
-        if _has_struggled_consecutively(state, 3):
-            consider_early_exit = True
+    # Check early exit condition using our new function
+    consider_early_exit = should_consider_early_section_exit(state)
 
     return new_diff, consider_early_exit
+
+def quality_from_strategy(strategy: str) -> str:
+    """
+    Derives a rough quality signal for the PerformanceNote strictly from the 
+    engine's chosen conversational strategy.
+    
+    Note: This is a deliberate simplification. It maps the chosen strategy 
+    directly to a performance quality, conflating "the strategy chosen" with 
+    "how well the candidate actually did". While usually correlated, they aren't 
+    identical (e.g. pivoting after an excellent answer). We accept this tradeoff
+    to keep the pipeline entirely deterministic without needing to parse the
+    unstructured LLM `rationale` field.
+    """
+    if strategy == "deepen":
+        return "good"
+    elif strategy == "simplify":
+        return "poor"
+    return "neutral"

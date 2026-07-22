@@ -1,23 +1,8 @@
 from app.services.llm_client import llm
-from app.models.schemas import InterviewState, FeedbackReport, Score
+from app.models.schemas import InterviewState, FeedbackReport, ScoringResult
 from app.services import session_store
+from app.services.scoring_engine import score_interview, _transcript_text
 import json
-
-SCORING_SYSTEM_PROMPT = """You are an expert technical interviewer evaluating a completed interview transcript.
-You have a specific set of scoring criteria. For each criterion, produce a score between 0.0 and 1.0, and a specific justification tying it back to a distinct moment in the transcript.
-
-Return JSON exactly:
-{
-  "scores": [
-    {
-      "criterion_name": "Name of criterion",
-      "score": 0.8,
-      "justification": "Candidate showed strong ...",
-      "location": "Transcript > Turn 4 > Python GIL discussion"
-    }
-  ]
-}
-"""
 
 REPORT_SYSTEM_PROMPT = """You are reviewing a completed technical interview \
 transcript. Produce a candid, specific feedback report — no generic \
@@ -46,22 +31,7 @@ performance or specific scores. Keep each response conversational and under ~100
 asked to go deeper."""
 
 
-def _transcript_text(state: InterviewState) -> str:
-    return "\n".join(f"{t.role}: {t.content}" for t in state.transcript)
 
-
-def score_interview(state: InterviewState) -> list[Score]:
-    """Generates criteria-based scores for the completed interview."""
-    criteria_text = "\n".join(f"- {c.name} (weight: {c.weight}): {c.description}" for c in state.plan.scoring_criteria)
-    user_prompt = f"Scoring Criteria:\n{criteria_text}\n\nTranscript:\n{_transcript_text(state)}"
-    
-    result = llm.complete_json(SCORING_SYSTEM_PROMPT, user_prompt, max_tokens=1500)
-    
-    # Parse the returned scores list into the Score schema
-    scores = []
-    for s in result.get("scores", []):
-        scores.append(Score(**s))
-    return scores
 
 
 def _ensure_scores(state: InterviewState) -> None:
@@ -74,7 +44,7 @@ def _ensure_scores(state: InterviewState) -> None:
 def generate_written_report(state: InterviewState) -> FeedbackReport:
     _ensure_scores(state)
     
-    scores_text = json.dumps([s.model_dump() for s in state.final_scores], indent=2)
+    scores_text = state.final_scores.model_dump_json(indent=2)
     user_prompt = f"Scores:\n{scores_text}\n\nTranscript:\n{_transcript_text(state)}"
     
     result = llm.complete_json(
@@ -83,7 +53,8 @@ def generate_written_report(state: InterviewState) -> FeedbackReport:
         max_tokens=2000,
     )
     
-    result["scores"] = state.final_scores
+    result["scores"] = state.final_scores.scores
+    result["weighted_overall"] = state.final_scores.weighted_overall
     return FeedbackReport(**result)
 
 
@@ -92,7 +63,7 @@ def debrief_turn(state: InterviewState, candidate_message: str) -> str:
     /feedback/debrief endpoint, same pattern as the interview loop."""
     _ensure_scores(state)
     
-    scores_text = json.dumps([s.model_dump() for s in state.final_scores], indent=2)
+    scores_text = state.final_scores.model_dump_json(indent=2)
     user = (
         f"Scores:\n{scores_text}\n\n"
         f"Interview transcript:\n{_transcript_text(state)}\n\n"

@@ -28,12 +28,11 @@ Design notes (read this before you touch it):
 """
 
 from app.services.llm_client import llm
-from app.services.planner import section_for_question_index
-from app.services.conversation_memory import summarize_if_needed
+from app.services.memory import build_context, record_performance
 from app.models.schemas import InterviewState, NextQuestionResponse, Difficulty, TranscriptTurn
-from app.services.interview_state_machine import advance
+from app.services.state_machine import current_section, get_current_phase
 from app.services.followup_generator import STRATEGY_PROMPT_FRAGMENT
-from app.services.adaptive_difficulty import next_difficulty
+from app.services.adaptive_difficulty import next_difficulty, quality_from_strategy
 
 SYSTEM_PROMPT = f"""You are conducting a live technical interview. You have \
 the candidate's resume, the full transcript so far, the topics already \
@@ -64,25 +63,19 @@ Return JSON exactly:
 
 
 def next_question(state: InterviewState, candidate_answer: str) -> NextQuestionResponse:
-    # Record the candidate's answer to the previous question first.
-    if state.transcript:
-        state.transcript.append(TranscriptTurn(role="candidate", content=candidate_answer))
+    # Question about to be generated is obtained via state_machine
+    section, _ = current_section(state)
+    phase = get_current_phase(state)
 
-    # Advance the state machine to determine the phase of the UPCOMING question.
-    advance(state)
-
-    # Question about to be generated: opening question was index 0, so the
-    # next engine-generated question is at index (turn_count + 1).
-    section, _ = section_for_question_index(state.plan, state.turn_count + 1)
-
-    transcript_text = summarize_if_needed(state, max_tokens=2500)
+    short_term_text, long_term_text = build_context(state)
+    transcript_text = f"{long_term_text}\n\n--- RECENT TURNS (VERBATIM) ---\n{short_term_text}" if long_term_text else short_term_text
 
     project_names = [p.name for p in state.resume.parsed.projects]
     user = (
         f"Resume summary: {state.resume.analysis.summary}\n"
         f"Projects: {', '.join(project_names)}\n"
         f"Skills: {', '.join(state.resume.parsed.skills)}\n\n"
-        f"Current interview phase: {state.phase.value}\n"
+        f"Current interview phase: {phase.value}\n"
         f"Current plan section: {section.name}\n"
         f"Section objective: {section.objective}\n"
         f"Section target topics: {section.target_topics}\n"
@@ -95,6 +88,33 @@ def next_question(state: InterviewState, candidate_answer: str) -> NextQuestionR
 
     result = llm.complete_json(SYSTEM_PROMPT, user)
 
+    # 1. Validate strategy
+    valid_strategies = {"deepen", "pivot", "simplify", "follow_up_tangent"}
+    if result.get("strategy") not in valid_strategies:
+        result["strategy"] = "pivot"
+
+    # 2. Enforce topic rules
+    interviewer_turns = [t for t in state.transcript if t.role == "interviewer"]
+    last_topic = interviewer_turns[-1].topic if len(interviewer_turns) >= 1 else None
+    second_last_topic = interviewer_turns[-2].topic if len(interviewer_turns) >= 2 else None
+    
+    rule_violated = False
+    correction_prompt = ""
+    
+    # Check if 3 consecutive questions on the same topic
+    if result["topic"] == last_topic and result["topic"] == second_last_topic:
+        rule_violated = True
+        correction_prompt = f"\n\nCORRECTION: You just attempted to ask a 3rd consecutive question on '{result['topic']}'. You MUST pivot to a new topic now."
+    # Check if topic is repeated but strategy implies it shouldn't be
+    elif result["topic"] == last_topic and result["strategy"] not in ["deepen", "simplify"]:
+        rule_violated = True
+        correction_prompt = f"\n\nCORRECTION: You kept the topic as '{result['topic']}' but chose strategy '{result['strategy']}'. If keeping the same topic, use 'deepen' or 'simplify'. Otherwise, pick a genuinely new topic."
+        
+    if rule_violated:
+        result = llm.complete_json(SYSTEM_PROMPT, user + correction_prompt)
+        if result.get("strategy") not in valid_strategies:
+            result["strategy"] = "pivot"
+
     new_difficulty, consider_early_exit = next_difficulty(
         state.current_difficulty, result["strategy"], section.target_difficulty, state
     )
@@ -102,12 +122,19 @@ def next_question(state: InterviewState, candidate_answer: str) -> NextQuestionR
     # In the future, interview_engine might use consider_early_exit to break out of the section
     # early and advance state.turn_count to the end of the section, but for now we just compute it.
 
-    # Update state in place.
+    # Update state in place (only after all LLM calls succeed)
+    if state.transcript:
+        state.transcript.append(TranscriptTurn(role="candidate", content=candidate_answer))
+        
     state.transcript.append(
         TranscriptTurn(role="interviewer", content=result["question"], topic=result["topic"])
     )
     if result["topic"] not in state.covered_topics:
         state.covered_topics.append(result["topic"])
+        
+    quality = quality_from_strategy(result["strategy"])
+    record_performance(state, result["topic"], state.current_difficulty, quality)
+    
     state.current_difficulty = new_difficulty
     state.turn_count += 1
 

@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -18,10 +18,11 @@ class Settings(BaseSettings):
 
     frontend_origin: str = "http://localhost:5173"
     
-    avatar_reference_face: str = "assets/default_face.jpg"
+    liveportrait_reference_face: str = "assets/default_face.jpg"
+    # Memory configurations
+    short_term_window: int = 6
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 settings = Settings()

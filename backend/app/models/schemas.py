@@ -161,11 +161,16 @@ class TranscriptTurn(BaseModel):
 
 
 class InterviewPhase(str, Enum):
-    NOT_STARTED = "NOT_STARTED"
-    IN_SECTION = "IN_SECTION"
-    TRANSITIONING_SECTION = "TRANSITIONING_SECTION"
-    WRAPPING_UP = "WRAPPING_UP"
-    COMPLETE = "COMPLETE"
+    in_progress = "in_progress"
+    final_section = "final_section"
+    wrapping_up = "wrapping_up"
+    complete = "complete"
+
+
+class PerformanceNote(BaseModel):
+    topic: str
+    difficulty: Difficulty
+    quality: str
 
 
 class InterviewState(BaseModel):
@@ -174,11 +179,11 @@ class InterviewState(BaseModel):
     plan: InterviewPlan
     transcript: list[TranscriptTurn] = Field(default_factory=list)
     covered_topics: list[str] = Field(default_factory=list)
+    performance_notes: list[PerformanceNote] = Field(default_factory=list)
     current_difficulty: Difficulty = Difficulty.medium
     turn_count: int = 0
-    phase: InterviewPhase = InterviewPhase.NOT_STARTED
     is_complete: bool = False
-    final_scores: Optional[list['Score']] = None
+    final_scores: Optional['ScoringResult'] = None
 
 
 class NextQuestionResponse(BaseModel):
@@ -200,11 +205,15 @@ class BehaviorCues(BaseModel):
 
 # ---------- Feedback ----------
 
-class Score(BaseModel):
+class CriterionScore(BaseModel):
     criterion_name: str
     score: float
     justification: str
     location: str
+
+class ScoringResult(BaseModel):
+    scores: list[CriterionScore]
+    weighted_overall: float
 
 
 class FeedbackMode(str, Enum):
@@ -214,7 +223,8 @@ class FeedbackMode(str, Enum):
 
 class FeedbackReport(BaseModel):
     overall_summary: str
-    scores: list[Score]
+    scores: list[CriterionScore]
+    weighted_overall: float
     strengths: list[str]
     weaknesses: list[str]
     moment_highlights: list[str]  # specific callouts tied to transcript moments

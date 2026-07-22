@@ -1,13 +1,15 @@
+import logging
+import json
 from typing import Union
 import asyncio
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from app.models.schemas import ResumeBundle, InterviewPlan, NextQuestionResponse, InterviewPhase
-from app.services import orchestrator, session_store
-from app.services.stt_service import transcribe_stream
-from app.services.tts_service import synthesize_speech_stream
+from app.services import orchestrator
+from app.services.speech_pipeline import transcribe_speech_stream
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/interview", tags=["interview"])
 
 
@@ -57,66 +59,95 @@ def submit_turn(req: TurnRequest) -> Union[NextQuestionResponse, dict]:
 async def voice_turn(websocket: WebSocket, session_id: str):
     await websocket.accept()
     
-    state = session_store.get(session_id)
-    if state is None:
+    try:
+        # Just to check if session exists
+        orchestrator.get_session(session_id)
+    except ValueError:
+        logger.warning(f"Rejected websocket connection: Session {session_id} not found.")
         await websocket.close(code=1008, reason="Session not found")
         return
 
-    # Keep track of the active TTS streaming task so it can be cancelled
-    tts_task = None
+    logger.info(f"WebSocket connection established for session {session_id}")
 
     async def audio_generator():
+        accumulated_audio = bytearray()
         try:
             while True:
-                data = await websocket.receive_bytes()
-                yield data
+                # receive() handles both text/JSON control messages and binary audio chunks
+                message = await websocket.receive()
+                
+                if message.get("type") == "websocket.receive":
+                    if "bytes" in message and message["bytes"] is not None:
+                        accumulated_audio.extend(message["bytes"])
+                    
+                    elif "text" in message and message["text"] is not None:
+                        try:
+                            payload = json.loads(message["text"])
+                            if payload.get("type") == "END_OF_TURN":
+                                if accumulated_audio:
+                                    logger.info(f"END_OF_TURN received. Processing {len(accumulated_audio)} bytes.")
+                                    # Yield the fully accumulated turn audio
+                                    yield bytes(accumulated_audio)
+                                    # Reset for the next turn to keep the socket alive
+                                    accumulated_audio = bytearray()
+                                else:
+                                    logger.debug("Received END_OF_TURN but no audio was accumulated.")
+                        except json.JSONDecodeError:
+                            logger.warning(f"Invalid JSON control message received: {message['text']}")
+                            
+                elif message.get("type") == "websocket.disconnect":
+                    logger.info(f"Client disconnected gracefully (session {session_id})")
+                    break
         except WebSocketDisconnect:
-            pass
+            logger.info(f"WebSocket disconnected abruptly for session {session_id}")
+        except Exception as e:
+            logger.error(f"Error in audio_generator for session {session_id}: {e}", exc_info=True)
+
+    async def send_tts(chunk: bytes):
+        try:
+            await websocket.send_bytes(chunk)
+        except WebSocketDisconnect:
+            logger.info(f"WebSocket disconnected while sending TTS (session {session_id})")
+            raise
+        except Exception as e:
+            logger.error(f"Error sending TTS chunk (session {session_id}): {e}", exc_info=True)
+            raise
+            
+    async def send_status(text: str):
+        try:
+            await websocket.send_text(text)
+        except WebSocketDisconnect:
+            logger.info(f"WebSocket disconnected while sending status (session {session_id})")
+        except Exception as e:
+            logger.error(f"Error sending status (session {session_id}): {e}", exc_info=True)
 
     try:
-        async for candidate_text in transcribe_stream(audio_generator()):
-            # Interruption handling: if candidate speaks while avatar is speaking, cancel TTS
-            if tts_task and not tts_task.done():
-                tts_task.cancel()
-            
-            # Submit the turn (sync operation, but should ideally be async. We will run it in thread if necessary, 
-            # but for now calling directly as the rest of the backend is sync)
-            try:
-                result = orchestrator.submit_answer(session_id, candidate_text)
-            except Exception as e:
-                await websocket.send_text(f"Error: {str(e)}")
-                break
-
-            if isinstance(result, dict) and result.get("status") == "complete":
-                await websocket.send_text("Interview complete.")
-                break
-
-            # Start streaming the TTS response back to the client
-            async def send_tts(text: str):
-                try:
-                    async for chunk in synthesize_speech_stream(text):
-                        await websocket.send_bytes(chunk)
-                except asyncio.CancelledError:
-                    # Cancelled due to interruption
-                    pass
-            
-            tts_task = asyncio.create_task(send_tts(result.question))
-    
+        # Pass the STT generator and TTS callback directly to the orchestrator.
+        # This keeps interruption state entirely within the orchestration layer.
+        await orchestrator.process_voice_stream(
+            session_id, 
+            audio_generator(), 
+            send_tts,
+            send_status
+        )
+    except asyncio.CancelledError:
+        logger.info(f"Voice stream cancelled for session {session_id}")
     except Exception as e:
-        print(f"WebSocket error: {e}")
+        logger.error(f"Critical WebSocket error for session {session_id}: {e}", exc_info=True)
     finally:
-        if tts_task and not tts_task.done():
-            tts_task.cancel()
-        if not websocket.client_state.name == "DISCONNECTED":
-            await websocket.close()
+        if websocket.client_state.name != "DISCONNECTED":
+            try:
+                await websocket.close()
+            except Exception as e:
+                logger.error(f"Error closing websocket for session {session_id}: {e}")
+        logger.info(f"WebSocket connection closed for session {session_id}")
 
 
 @router.post("/end/{session_id}")
 def end_interview(session_id: str) -> dict:
-    state = session_store.get(session_id)
-    if state is None:
-        raise HTTPException(404, "Session not found")
-    state.is_complete = True
-    state.phase = InterviewPhase.COMPLETE
-    session_store.save(state)
-    return {"session_id": session_id, "turn_count": state.turn_count}
+    try:
+        return orchestrator.end_interview(session_id)
+    except ValueError as e:
+        if str(e) == "Session not found":
+            raise HTTPException(404, "Session not found")
+        raise HTTPException(500, str(e))
