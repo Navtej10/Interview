@@ -107,12 +107,12 @@ def render_interviewer_turn(text: str):
     """
     try:
         from app.services.speech_pipeline import synthesize_speech
-        from app.services.avatar_pipeline import render_avatar_video, LivePortraitError
+        from app.services.avatar_service import avatar_service, AvatarError
         from app.services.behavior_engine import derive_behavior_cues, Difficulty
     except ImportError:
-        LivePortraitError = type("LivePortraitError", (Exception,), {})
+        AvatarError = type("AvatarError", (Exception,), {})
         synthesize_speech = None
-        render_avatar_video = None
+        avatar_service = None
         derive_behavior_cues = None
 
     try:
@@ -123,7 +123,7 @@ def render_interviewer_turn(text: str):
         
         async def run_pipeline():
             audio_path = await synthesize_speech(text, "output.wav")
-            await render_avatar_video(audio_path, cues, "avatar_output.mp4")
+            await avatar_service.render_avatar(audio_path, cues, "avatar_output.mp4")
 
         # Since this is a synchronous path, we use asyncio.run to await the generation.
         try:
@@ -131,7 +131,7 @@ def render_interviewer_turn(text: str):
             loop.create_task(run_pipeline())
         except RuntimeError:
             asyncio.run(run_pipeline())
-    except (NotImplementedError, LivePortraitError, Exception) as e:
+    except (NotImplementedError, AvatarError, Exception) as e:
         logger.warning(f"Voice/Avatar pipeline failed, falling back to text-only mode: {e}")
 
 async def process_voice_stream(
@@ -150,14 +150,18 @@ async def process_voice_stream(
     5. Repeat
     """
     from app.services.speech_pipeline import transcribe_speech_stream, synthesize_speech_stream
-    from app.services.avatar_pipeline import render_avatar_video_stream
+    from app.services.avatar_service import avatar_service, AvatarError
     from app.services.behavior_engine import derive_behavior_cues
+    import tempfile
+    import os
     
     async def send_avatar_wrapper(text: str, result_dict: dict):
         """
         Coordinates generating the TTS audio and Avatar video, then sending the complete video.
         Any exceptions during avatar generation are explicitly logged and not swallowed.
         """
+        audio_temp = None
+        video_temp = None
         try:
             logger.info(f"Generating avatar response for: {text}")
             audio_stream = synthesize_speech_stream(text)
@@ -165,10 +169,26 @@ async def process_voice_stream(
             strat = result_dict.get("rationale", "neutral")
             cues = derive_behavior_cues(text, strat, diff)
             
-            # This generates the complete turn-based video and yields it back in chunks
-            async for chunk in render_avatar_video_stream(audio_stream, cues):
-                await send_tts(chunk)
-                
+            # 1. Accumulate audio chunks to a temp file
+            audio_temp_fd, audio_temp = tempfile.mkstemp(suffix=".mp3")
+            os.close(audio_temp_fd)
+            with open(audio_temp, "wb") as f:
+                async for chunk in audio_stream:
+                    f.write(chunk)
+                    
+            # 2. Render Avatar Video
+            video_temp_fd, video_temp = tempfile.mkstemp(suffix=".mp4")
+            os.close(video_temp_fd)
+            await avatar_service.render_avatar(audio_temp, cues, video_temp)
+            
+            # 3. Stream back the completed video in chunks
+            with open(video_temp, "rb") as f:
+                while True:
+                    chunk = f.read(8192)
+                    if not chunk:
+                        break
+                    await send_tts(chunk)
+                    
             logger.info("Avatar response sent successfully.")
         except asyncio.CancelledError:
             logger.info("Avatar playback was interrupted by the client.")
@@ -178,6 +198,13 @@ async def process_voice_stream(
             # Never swallow avatar exceptions
             await send_status(f"Avatar error: {e}")
             raise
+        finally:
+            for tmp_file in [audio_temp, video_temp]:
+                if tmp_file and os.path.exists(tmp_file):
+                    try:
+                        os.unlink(tmp_file)
+                    except Exception as cleanup_err:
+                        logger.error(f"Failed to clean up temp file {tmp_file}: {cleanup_err}", exc_info=True)
 
     # 1. Play the opening question sequentially
     try:

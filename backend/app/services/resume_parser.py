@@ -9,12 +9,97 @@ from pypdf import PdfReader
 from docx import Document
 
 from app.services.llm_client import llm
-from app.models.schemas import ParsedResume, ResumeProject, ResumeExperience, ResumeEducation
+from app.models.schemas import ParsedResume, ResumeProject, ResumeExperience, ResumeEducation, ResumeCertification
 
-SYSTEM_PROMPT = """You extract structured information from a resume. Be \
-thorough and literal — extract what's there, don't judge quality or \
-completeness (that happens in a separate step). For each project and \
-experience entry, list the specific technologies mentioned.
+SYSTEM_PROMPT = """You are an expert resume parsing engine.
+
+Your ONLY responsibility is extracting structured information.
+
+DO NOT evaluate.
+DO NOT criticize.
+DO NOT give suggestions.
+DO NOT infer experience that isn't explicitly written.
+
+Return exactly what exists in the resume.
+
+Extraction Rules
+
+• Extract every skill individually.
+• Extract every project.
+• Extract every work experience.
+• Extract education.
+• Extract certifications.
+• Extract achievements.
+• Extract hackathons separately if possible.
+• Extract coursework.
+• Extract technical tools.
+• Extract programming languages.
+• Extract frameworks.
+• Extract databases.
+• Extract cloud platforms.
+• Extract operating systems.
+• Extract development tools.
+
+For every project extract:
+
+- name
+- role (null if absent)
+- duration
+- description
+- technologies
+- responsibilities
+- achievements
+- github link
+- live demo
+- team size
+- project type
+- project domain
+
+For every experience extract
+
+- company
+- title
+- duration
+- bullets
+- technologies
+- responsibilities
+- measurable achievements
+
+For education extract
+
+- institution
+- degree
+- specialization
+- GPA
+- duration
+- coursework
+
+For certifications extract
+
+- certification name
+- issuer
+- year
+- credential URL if present
+
+Normalize technology names.
+
+Examples
+
+GitHub -> Git
+
+Python3 -> Python
+
+C# -> C#
+
+NodeJS -> Node.js
+
+Return JSON only.
+
+Never summarize.
+
+Never analyze.
+
+Never infer.
 
 Return JSON exactly:
 {
@@ -22,7 +107,7 @@ Return JSON exactly:
   "projects": [{"name": "...", "description": "...", "technologies": ["..."], "role": "..." | null}],
   "experience": [{"company": "...", "title": "...", "duration": "..." | null, "bullets": ["..."], "technologies": ["..."]}],
   "education": [{"institution": "...", "degree": "...", "field": "..." | null, "duration": "..." | null}],
-  "certifications": ["...", "..."],
+  "certifications": [{"name": "...", "issuer": "...", "year": "...", "url": "..." | null}],
   "achievements": ["...", "..."]
 }
 """
@@ -107,7 +192,7 @@ def parse_resume(file_bytes: bytes, filename: str) -> ParsedResume:
         projects=[ResumeProject(**p) for p in result["projects"]],
         experience=[ResumeExperience(**e) for e in result["experience"]],
         education=[ResumeEducation(**e) for e in result["education"]],
-        certifications=result["certifications"],
+        certifications=[ResumeCertification(**c) for c in result.get("certifications", [])],
         achievements=result["achievements"],
         low_confidence=low_confidence,
         parse_quality_notes=parse_quality_notes,

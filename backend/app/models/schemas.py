@@ -27,6 +27,13 @@ class ResumeEducation(BaseModel):
     duration: Optional[str] = None
 
 
+class ResumeCertification(BaseModel):
+    name: str
+    issuer: Optional[str] = None
+    year: Optional[str] = None
+    url: Optional[str] = None
+
+
 class ParsedResume(BaseModel):
     """Pure extraction — no opinions. Judgment lives in ResumeAnalysis."""
     raw_text: str
@@ -34,7 +41,7 @@ class ParsedResume(BaseModel):
     projects: list[ResumeProject]
     experience: list[ResumeExperience]
     education: list[ResumeEducation]
-    certifications: list[str]
+    certifications: list[ResumeCertification]
     achievements: list[str]
     low_confidence: bool = False
     parse_quality_notes: list[str] = Field(default_factory=list)
@@ -47,7 +54,6 @@ class Severity(str, Enum):
     medium = "medium"
     high = "high"
 
-
 class ResumeGap(BaseModel):
     category: str  # "vague_description" | "missing_metric" | "unsupported_skill" | "ats_issue" | "formatting"
     location: str  # e.g. "Experience > Acme Corp > bullet 2"
@@ -55,12 +61,124 @@ class ResumeGap(BaseModel):
     suggestion: str
     severity: Severity = Severity.medium
 
+class CandidateProfile(BaseModel):
+    career_stage: str
+    primary_domain: str
+    secondary_domain: str
+    technical_maturity: str
+    experience_level: str
+    interview_readiness: str
+    resume_quality: str
+    overall_recommendation: str
+
+class ScoreCard(BaseModel):
+    title: str
+    score: int
+    reason: str
+
+class Scores(BaseModel):
+    overall_resume: ScoreCard
+    ats_compatibility: ScoreCard
+    technical_skills: ScoreCard
+    project_quality: ScoreCard
+    resume_writing: ScoreCard
+    interview_readiness: ScoreCard
+    confidence_score: ScoreCard
+
+class SkillEvidence(BaseModel):
+    skill: str
+    confidence: str # High, Medium, Low, Unverified
+    evidence: str # Project, Experience, Certification, Coursework, Hackathon, Summary
+    reason: str
+    confidence_score: int
+
+class ProjectReview(BaseModel):
+    name: str
+    complexity: int
+    innovation: int
+    technical_depth: int
+    architecture: int
+    ownership: int
+    documentation: int
+    resume_quality: int
+    impact: int
+    role_clarity: int
+    metrics_present: bool
+    strengths: list[str]
+    weaknesses: list[str]
+    missing_information: list[str]
+    improvements: list[str]
+    likely_interview_questions: list[str]
+
+class ExperienceReview(BaseModel):
+    is_student: bool
+    projects_evaluation: str
+    hackathons_evaluation: str
+    research_evaluation: str
+    open_source_evaluation: str
+    work_experience_evaluation: Optional[str] = None
+
+class ResumeConsistency(BaseModel):
+    summary_aligns_with_projects: bool
+    skills_align_with_projects: bool
+    projects_align_with_career_objective: bool
+    education_supports_domain: bool
+    dates_consistent: bool
+    no_duplicates: bool
+    technologies_consistent: bool
+
+class ATSAnalysis(BaseModel):
+    ats_score: int
+    formatting: str
+    keyword_coverage: str
+    section_detection: str
+    date_formatting: str
+    bullet_quality: str
+    missing_keywords: list[str]
+    parseability: str
+    recommendations: list[str]
+
+class TechnicalRisk(BaseModel):
+    technology: str
+    risk_level: str # High, Medium, Low
+    reason: str
+    suggested_preparation: str
+
+class PredictedQuestion(BaseModel):
+    question: str
+    category: str # Resume Walkthrough, Projects, Programming, CS Fundamentals, Behavioral, Scenario Based
+    difficulty: str # Easy, Medium, Hard
+    reason: str
+    triggered_by: str
+    probability: int
+
+class GrowthRecommendation(BaseModel):
+    recommendation: str
+    priority: str # High, Medium, Low
+    reason: str
+    expected_impact: str
+    estimated_effort: str
+
+class GrowthRoadmap(BaseModel):
+    high_priority: list[GrowthRecommendation]
+    medium_priority: list[GrowthRecommendation]
+    low_priority: list[GrowthRecommendation]
 
 class ResumeAnalysis(BaseModel):
+    candidate_profile: CandidateProfile
+    scores: Scores
     summary: str
     strengths: list[str]
+    skill_matrix: list[SkillEvidence]
+    project_reviews: list[ProjectReview]
+    experience_review: ExperienceReview
+    resume_consistency: ResumeConsistency
+    ats_analysis: ATSAnalysis
+    technical_risks: list[TechnicalRisk]
+    predicted_questions: list[PredictedQuestion]
+    growth_roadmap: GrowthRoadmap
     gaps: list[ResumeGap]
-    ats_issues: list[str]
+    final_recommendation: str
 
 
 # ---------- Module 3: Resume Knowledge Graph ----------
