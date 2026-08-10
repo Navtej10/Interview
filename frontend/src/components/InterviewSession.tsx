@@ -184,15 +184,19 @@ export function InterviewSession({
 
   async function startRecording() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        }
+      })
       const mr = new MediaRecorder(stream)
       mediaRecorderRef.current = mr
       
       mr.ondataavailable = (e) => {
         if (e.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
-          e.data.arrayBuffer().then(buffer => {
-            wsRef.current?.send(buffer)
-          })
+          wsRef.current?.send(e.data)
         }
       }
       
@@ -212,13 +216,18 @@ export function InterviewSession({
 
   function stopRecording() {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.onstop = () => {
+        // Send END_OF_TURN control message so the backend stops waiting for audio
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ type: 'END_OF_TURN' }))
+        }
+      }
       mediaRecorderRef.current.stop()
       mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop())
-    }
-    
-    // Send END_OF_TURN control message so the backend stops waiting for audio
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'END_OF_TURN' }))
+    } else {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'END_OF_TURN' }))
+      }
     }
     
     setUiState('thinking') // Waiting for backend to transcribe and generate next avatar video

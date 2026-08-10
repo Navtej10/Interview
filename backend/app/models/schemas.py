@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, AliasChoices
 
 
 # ---------- Module 1: Resume Parser (structured extraction, no judgment) ----------
@@ -8,30 +8,40 @@ from pydantic import BaseModel, Field
 class ResumeProject(BaseModel):
     name: str
     description: str
-    technologies: list[str]
+    technologies: list[str] = Field(default_factory=list)
     role: Optional[str] = None
+
+    @field_validator("technologies", mode="before")
+    @classmethod
+    def none_to_empty(cls, v):
+        return v or []
 
 
 class ResumeExperience(BaseModel):
     company: str
     title: str
     duration: Optional[str] = None
-    bullets: list[str]
-    technologies: list[str]
+    bullets: list[str] = Field(default_factory=list)
+    technologies: list[str] = Field(default_factory=list)
+
+    @field_validator("bullets", "technologies", mode="before")
+    @classmethod
+    def none_to_empty(cls, v):
+        return v or []
 
 
 class ResumeEducation(BaseModel):
     institution: str
     degree: str
-    field: Optional[str] = None
+    field: Optional[str] = Field(None, validation_alias=AliasChoices("field", "specialization"))
     duration: Optional[str] = None
 
 
 class ResumeCertification(BaseModel):
-    name: str
+    name: str = Field(validation_alias=AliasChoices("name", "certification name", "certification_name", "certification"))
     issuer: Optional[str] = None
     year: Optional[str] = None
-    url: Optional[str] = None
+    url: Optional[str] = Field(None, validation_alias=AliasChoices("url", "credential URL", "credential_url", "credential url", "link"))
 
 
 class ParsedResume(BaseModel):
@@ -160,9 +170,9 @@ class GrowthRecommendation(BaseModel):
     estimated_effort: str
 
 class GrowthRoadmap(BaseModel):
-    high_priority: list[GrowthRecommendation]
-    medium_priority: list[GrowthRecommendation]
-    low_priority: list[GrowthRecommendation]
+    high_priority: list[GrowthRecommendation] = Field(default_factory=list)
+    medium_priority: list[GrowthRecommendation] = Field(default_factory=list)
+    low_priority: list[GrowthRecommendation] = Field(default_factory=list)
 
 class ResumeAnalysis(BaseModel):
     candidate_profile: CandidateProfile
@@ -176,9 +186,9 @@ class ResumeAnalysis(BaseModel):
     ats_analysis: ATSAnalysis
     technical_risks: list[TechnicalRisk]
     predicted_questions: list[PredictedQuestion]
-    growth_roadmap: GrowthRoadmap
-    gaps: list[ResumeGap]
-    final_recommendation: str
+    growth_roadmap: Optional[GrowthRoadmap] = None
+    gaps: list[ResumeGap] = Field(default_factory=list)
+    final_recommendation: str = ""
 
 
 # ---------- Module 3: Resume Knowledge Graph ----------

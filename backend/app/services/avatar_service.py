@@ -95,7 +95,7 @@ class AvatarService:
             await asyncio.sleep(1.0) 
             
             # For the mock, we just generate a dummy file to simulate success
-            if not os.path.exists(output_path):
+            if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
                 # Fallback to creating a static video to represent the mock output
                 await self._fallback_render(audio_path, output_path)
                 
@@ -115,7 +115,7 @@ class AvatarService:
         acodec = "libopus" if is_webm else "aac"
         
         ffmpeg_cmd = [
-            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
             "-loop", "1", "-framerate", "25",
             "-i", self.reference_face_path,
             "-i", audio_path,

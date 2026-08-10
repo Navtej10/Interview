@@ -16,6 +16,28 @@ router = APIRouter(prefix="/interview", tags=["interview"])
 class StartInterviewRequest(BaseModel):
     resume: ResumeBundle
 
+@router.get("/test_avatar")
+async def test_avatar():
+    from app.services.speech_pipeline import synthesize_speech_stream
+    from app.services.avatar_service import avatar_service
+    from app.services.behavior_engine import derive_behavior_cues
+    import tempfile, os
+    text = "Hello world"
+    audio_stream = synthesize_speech_stream(text)
+    cues = derive_behavior_cues(text, "neutral", "medium")
+    
+    audio_temp_fd, audio_temp = tempfile.mkstemp(suffix=".mp3")
+    os.close(audio_temp_fd)
+    with open(audio_temp, "wb") as f:
+        async for chunk in audio_stream:
+            f.write(chunk)
+            
+    video_temp_fd, video_temp = tempfile.mkstemp(suffix=".mp4")
+    os.close(video_temp_fd)
+    
+    await avatar_service.render_avatar(audio_temp, cues, video_temp)
+    return {"status": "ok", "video": video_temp}
+
 
 class StartInterviewResponse(BaseModel):
     session_id: str

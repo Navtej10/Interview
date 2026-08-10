@@ -597,7 +597,11 @@ def analyze(parsed: ParsedResume, graph: KnowledgeGraph) -> ResumeAnalysis:
     # Give the LLM plenty of tokens for this massive JSON output
     result = llm.complete_json(SYSTEM_PROMPT, user, max_tokens=6000)
 
-    llm_gaps = [ResumeGap(**g) for g in result.get("gaps", [])]
+    raw_gaps = result.get("gaps", [])
+    for g in raw_gaps:
+        if "severity" in g and isinstance(g["severity"], str):
+            g["severity"] = g["severity"].lower()
+    llm_gaps = [ResumeGap(**g) for g in raw_gaps]
 
     # Deterministic cross-check: append unsupported skills the LLM missed
     deterministic_gaps = _build_unsupported_skill_gaps(graph, llm_gaps)

@@ -134,6 +134,26 @@ def render_interviewer_turn(text: str):
     except (NotImplementedError, AvatarError, Exception) as e:
         logger.warning(f"Voice/Avatar pipeline failed, falling back to text-only mode: {e}")
 
+def _build_transcription_prompt(state: InterviewState) -> str:
+    """
+    Best-effort domain vocabulary hint so Whisper is less likely to mis-hear
+    the candidate's name, employers, and technical terms from their resume.
+    """
+    try:
+        parsed = state.resume.parsed
+        name = getattr(parsed, "name", None) or getattr(parsed, "full_name", None)
+        skills = getattr(parsed, "skills", None) or []
+        companies = [
+            getattr(exp, "company", None)
+            for exp in (getattr(parsed, "experience", None) or [])
+        ]
+        terms = [t for t in [name, *skills, *companies] if t]
+        if terms:
+            return "Interview transcript. Relevant terms: " + ", ".join(terms[:25])
+    except Exception as e:
+        logger.debug(f"Could not build transcription prompt from resume: {e}")
+    return "Interview transcript for a technical job candidate."
+
 async def process_voice_stream(
     session_id: str, 
     audio_generator: AsyncIterator[bytes], 
@@ -164,10 +184,12 @@ async def process_voice_stream(
         video_temp = None
         try:
             logger.info(f"Generating avatar response for: {text}")
+            print(f"DEBUG: Generating avatar response for: {text}", flush=True)
             audio_stream = synthesize_speech_stream(text)
             diff = result_dict.get("difficulty", "medium")
             strat = result_dict.get("rationale", "neutral")
             cues = derive_behavior_cues(text, strat, diff)
+            print("DEBUG: Accumulated cues, making temp audio file", flush=True)
             
             # 1. Accumulate audio chunks to a temp file
             audio_temp_fd, audio_temp = tempfile.mkstemp(suffix=".mp3")
@@ -175,11 +197,14 @@ async def process_voice_stream(
             with open(audio_temp, "wb") as f:
                 async for chunk in audio_stream:
                     f.write(chunk)
+            print("DEBUG: Rendering avatar video", flush=True)
                     
             # 2. Render Avatar Video
             video_temp_fd, video_temp = tempfile.mkstemp(suffix=".mp4")
             os.close(video_temp_fd)
+            print("DEBUG: Awaiting avatar_service.render_avatar", flush=True)
             await avatar_service.render_avatar(audio_temp, cues, video_temp)
+            print("DEBUG: Avatar rendered, streaming back video chunks", flush=True)
             
             # 3. Stream back the completed video in chunks
             with open(video_temp, "rb") as f:
@@ -194,6 +219,7 @@ async def process_voice_stream(
             logger.info("Avatar playback was interrupted by the client.")
             raise
         except Exception as e:
+            print(f"DEBUG: Critical error in send_avatar_wrapper: {e}")
             logger.error(f"Critical error during avatar generation/playback: {e}", exc_info=True)
             # Never swallow avatar exceptions
             await send_status(f"Avatar error: {e}")
@@ -216,16 +242,19 @@ async def process_voice_stream(
             )
     except asyncio.CancelledError:
         logger.info("Voice stream was cancelled during opening question.")
+        print("DEBUG: Cancelled during opening question")
         return
     except Exception as e:
         logger.error(f"Failed to play opening question: {e}", exc_info=True)
+        print(f"DEBUG: Failed to play opening question: {e}")
         # We abort the stream early if the avatar pipeline is broken
         return
 
     # 2. Sequential turn processing loop
     try:
         # Transcribe candidate audio per explicit turn
-        async for candidate_text in transcribe_speech_stream(audio_generator):
+        prompt = _build_transcription_prompt(state)
+        async for candidate_text in transcribe_speech_stream(audio_generator, initial_prompt=prompt):
             logger.info(f"Received candidate transcript: {candidate_text}")
             
             # 3. Generate Next Question

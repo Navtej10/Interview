@@ -8,8 +8,9 @@ try:
     import os
     os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
     from faster_whisper import WhisperModel
-    # Uses tiny.en for acceptable latency on short utterances
-    model = WhisperModel("tiny.en", device="cpu", compute_type="int8")
+    # base.en costs a bit more latency than tiny.en but is noticeably more
+    # accurate on names/technical vocabulary — worth it for interview transcripts.
+    model = WhisperModel("base.en", device="cpu", compute_type="int8")
 except ImportError:
     edge_tts = None
     WhisperModel = None
@@ -23,11 +24,22 @@ async def synthesize_speech(text: str, output_path: str) -> str:
     await communicate.save(output_path)
     return output_path
 
-def transcribe_speech(audio_path: str) -> str:
+DEFAULT_TRANSCRIBE_KWARGS = dict(
+    beam_size=5,
+    language="en",
+    vad_filter=True,
+    vad_parameters=dict(min_silence_duration_ms=500),
+    condition_on_previous_text=False,
+    no_speech_threshold=0.6,
+)
+
+def transcribe_speech(audio_path: str, initial_prompt: str | None = None) -> str:
     """
     Transcribes a full audio file using faster-whisper.
     """
-    segments, _ = model.transcribe(audio_path, beam_size=1)
+    segments, _ = model.transcribe(
+        audio_path, initial_prompt=initial_prompt, **DEFAULT_TRANSCRIBE_KWARGS
+    )
     return " ".join([segment.text for segment in segments]).strip()
 
 async def synthesize_speech_stream(text: str) -> AsyncIterator[bytes]:
@@ -43,7 +55,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-async def transcribe_speech_stream(audio_chunks: AsyncIterator[bytes]) -> AsyncIterator[str]:
+async def transcribe_speech_stream(
+    audio_chunks: AsyncIterator[bytes],
+    initial_prompt: str | None = None,
+) -> AsyncIterator[str]:
     """
     Consumes binary audio chunks (each chunk representing a complete recording
     for a single interview turn) and yields the transcribed text immediately.
@@ -68,12 +83,18 @@ async def transcribe_speech_stream(audio_chunks: AsyncIterator[bytes]) -> AsyncI
             def run_transcription():
                 if model is None:
                     raise RuntimeError("Whisper model is not initialized.")
-                return model.transcribe(tmp_path, beam_size=1)
+                return model.transcribe(
+                    tmp_path, initial_prompt=initial_prompt, **DEFAULT_TRANSCRIBE_KWARGS
+                )
                 
             segments, _ = await loop.run_in_executor(None, run_transcription)
+            segments = list(segments)  # materialize once, so we can inspect confidence
             text = " ".join([segment.text for segment in segments]).strip()
             
             if text:
+                avg_conf = sum(s.avg_logprob for s in segments) / len(segments)
+                if avg_conf < -1.0:
+                    logger.warning(f"Low-confidence transcription (avg_logprob={avg_conf:.2f}): {text!r}")
                 yield text
             else:
                 logger.warning("Transcription completed but returned empty text.")

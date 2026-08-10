@@ -12,9 +12,24 @@ export default function App() {
   const [resume, setResume] = useState<ResumeBundle | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
 
+  const goHome = () => {
+    if (confirm('Are you sure you want to go home? Current progress will be lost.')) {
+      setStage('upload')
+      setResume(null)
+      setSessionId(null)
+    }
+  }
+
   return (
     <main style={{ maxWidth: 720, margin: '2rem auto', fontFamily: 'sans-serif' }}>
-      <h1>InterviewAI</h1>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h1 style={{ margin: 0 }}>InterviewAI</h1>
+        {stage !== 'upload' && (
+          <button onClick={goHome} style={{ padding: '0.5rem 1rem', cursor: 'pointer' }}>
+            🏠 Home
+          </button>
+        )}
+      </header>
 
       {stage === 'upload' && (
         <ResumeUpload
@@ -26,20 +41,37 @@ export default function App() {
       )}
 
       {stage === 'analysis' && resume && (
-        <ResumeAnalysisView resume={resume} onContinue={() => setStage('interview')} />
+        <div>
+          <button onClick={() => setStage('upload')} style={{ marginBottom: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+            ← Back to Upload
+          </button>
+          <ResumeAnalysisView resume={resume} onContinue={() => setStage('interview')} />
+        </div>
       )}
 
       {stage === 'interview' && resume && (
-        <InterviewSession
-          resume={resume}
-          onComplete={(id) => {
-            setSessionId(id)
-            setStage('feedback')
-          }}
-        />
+        <div>
+          <button onClick={() => setStage('analysis')} style={{ marginBottom: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+            ← Back to Analysis
+          </button>
+          <InterviewSession
+            resume={resume}
+            onComplete={(id) => {
+              setSessionId(id)
+              setStage('feedback')
+            }}
+          />
+        </div>
       )}
 
-      {stage === 'feedback' && sessionId && <FeedbackFlow sessionId={sessionId} />}
+      {stage === 'feedback' && sessionId && (
+        <div>
+          <button onClick={() => setStage('interview')} style={{ marginBottom: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+            ← Back to Interview
+          </button>
+          <FeedbackFlow sessionId={sessionId} />
+        </div>
+      )}
     </main>
   )
 }

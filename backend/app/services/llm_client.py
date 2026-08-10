@@ -21,13 +21,13 @@ class LLMClient:
         elif self.provider == "groq":
             self._groq_client = Groq(api_key=settings.groq_api_key)
 
-    def complete(self, system: str, user: str, max_tokens: int = 1500) -> str:
+    def complete(self, system: str, user: str, max_tokens: int = 1500, json_mode: bool = False) -> str:
         if self.provider == "anthropic":
             return self._complete_anthropic(system, user, max_tokens)
         elif self.provider == "ollama":
             return self._complete_ollama(system, user)
         elif self.provider == "groq":
-            return self._complete_groq(system, user, max_tokens)
+            return self._complete_groq(system, user, max_tokens, json_mode)
         elif self.provider == "openai":
             return self._complete_openai(system, user, max_tokens)
         raise ValueError(f"Unknown LLM_PROVIDER: {self.provider}")
@@ -41,9 +41,14 @@ class LLMClient:
             + "\n\nRespond with ONLY valid JSON. No markdown fences, "
               "no preamble, no explanation before or after."
         )
-        raw = self.complete(json_system, user, max_tokens)
+        raw = self.complete(json_system, user, max_tokens, json_mode=True)
         cleaned = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        return json.loads(cleaned)
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            print(f"JSONDecodeError: {e}")
+            print(f"Raw output: {raw}")
+            raise
 
     def _complete_anthropic(self, system: str, user: str, max_tokens: int) -> str:
         resp = self._client.messages.create(
@@ -70,16 +75,20 @@ class LLMClient:
         resp.raise_for_status()
         return resp.json()["message"]["content"]
 
-    def _complete_groq(self, system: str, user: str, max_tokens: int) -> str:
-        chat_completion = self._groq_client.chat.completions.create(
-            messages=[
+    def _complete_groq(self, system: str, user: str, max_tokens: int, json_mode: bool = False) -> str:
+        kwargs = {
+            "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user}
             ],
-            model=settings.groq_model,
-            max_tokens=max_tokens,
-            temperature=0.7,
-        )
+            "model": settings.groq_model,
+            "max_tokens": max_tokens,
+            "temperature": 0.7,
+        }
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+            
+        chat_completion = self._groq_client.chat.completions.create(**kwargs)
         return chat_completion.choices[0].message.content
 
     def _complete_openai(self, system: str, user: str, max_tokens: int) -> str:
