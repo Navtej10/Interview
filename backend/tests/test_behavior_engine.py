@@ -1,4 +1,4 @@
-from app.services.behavior_engine import derive_behavior_cues, IDLE_DEFAULTS
+from app.services.behavior_engine import derive_behavior_cues, IDLE_PRESETS
 from app.models.schemas import Difficulty
 
 def test_derive_behavior_cues_fallback():

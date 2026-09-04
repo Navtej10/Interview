@@ -13,15 +13,11 @@ from app.services.planner import section_for_question_index
 
 def current_section(state: InterviewState):
     """
-    Returns (section, section_index) for the upcoming question.
-    Computes question_index as turn_count + 1 only if there's an existing transcript,
-    otherwise returns the opening section (index 0).
+    Returns (section, section_index) based on state.current_section_index.
+    Ensures index doesn't exceed bounds.
     """
-    if state.transcript:
-        idx = state.turn_count + 1
-    else:
-        idx = 0
-    return section_for_question_index(state.plan, idx)
+    idx = min(state.current_section_index, len(state.plan.sections) - 1)
+    return state.plan.sections[idx], idx
 
 def has_exceeded_plan(state: InterviewState) -> bool:
     """
@@ -37,12 +33,18 @@ def get_current_phase(state: InterviewState) -> InterviewPhase:
     if state.is_complete:
         return InterviewPhase.complete
 
-    if has_exceeded_plan(state):
-        return InterviewPhase.wrapping_up
+    if has_exceeded_plan(state) or state.termination_reason is not None:
+        return InterviewPhase.closing
         
     _, current_idx = current_section(state)
     
-    if current_idx == len(state.plan.sections) - 1:
-        return InterviewPhase.final_section
-
-    return InterviewPhase.in_progress
+    if current_idx == 0:
+        return InterviewPhase.introduction
+    elif current_idx == 1:
+        return InterviewPhase.background
+    elif current_idx == 2:
+        return InterviewPhase.technical
+    elif current_idx == 3:
+        return InterviewPhase.behavioral
+    else:
+        return InterviewPhase.closing

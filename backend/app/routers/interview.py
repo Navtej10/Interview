@@ -15,6 +15,7 @@ router = APIRouter(prefix="/interview", tags=["interview"])
 
 class StartInterviewRequest(BaseModel):
     resume: ResumeBundle
+    company_id: Union[str, None] = None
 
 @router.get("/test_avatar")
 async def test_avatar():
@@ -55,7 +56,7 @@ class TurnRequest(BaseModel):
 
 @router.post("/start", response_model=StartInterviewResponse)
 def start_interview(req: StartInterviewRequest) -> StartInterviewResponse:
-    session_id, question, topic, section_name, plan, rationale = orchestrator.start_interview(req.resume)
+    session_id, question, topic, section_name, plan, rationale = orchestrator.start_interview(req.resume, req.company_id)
 
     return StartInterviewResponse(
         session_id=session_id,
@@ -128,9 +129,11 @@ async def voice_turn(websocket: WebSocket, session_id: str):
     async def send_tts(chunk: bytes):
         try:
             await websocket.send_bytes(chunk)
-        except WebSocketDisconnect:
+        except (WebSocketDisconnect, RuntimeError) as e:
+            if isinstance(e, RuntimeError) and 'Cannot call "send"' not in str(e):
+                raise
             logger.info(f"WebSocket disconnected while sending TTS (session {session_id})")
-            raise
+            raise WebSocketDisconnect(code=1006)
         except Exception as e:
             logger.error(f"Error sending TTS chunk (session {session_id}): {e}", exc_info=True)
             raise
@@ -138,7 +141,10 @@ async def voice_turn(websocket: WebSocket, session_id: str):
     async def send_status(text: str):
         try:
             await websocket.send_text(text)
-        except WebSocketDisconnect:
+        except (WebSocketDisconnect, RuntimeError) as e:
+            if isinstance(e, RuntimeError) and 'Cannot call "send"' not in str(e):
+                logger.error(f"Error sending status (session {session_id}): {e}", exc_info=True)
+                return
             logger.info(f"WebSocket disconnected while sending status (session {session_id})")
         except Exception as e:
             logger.error(f"Error sending status (session {session_id}): {e}", exc_info=True)

@@ -23,7 +23,15 @@ def test_score_interview_weighting_logic(mock_complete_json):
         session_id="test",
         resume=ResumeBundle(
             parsed=ParsedResume(raw_text="", skills=[], projects=[], experience=[], education=[], certifications=[], achievements=[]),
-            analysis=ResumeAnalysis(summary="", strengths=[], gaps=[], ats_issues=[]),
+            analysis=ResumeAnalysis(
+                candidate_profile={"career_stage":"","primary_domain":"","secondary_domain":"","technical_maturity":"","experience_level":"","interview_readiness":"","resume_quality":"","overall_recommendation":""},
+                scores={"overall_resume":{"title":"","score":0,"reason":""},"ats_compatibility":{"title":"","score":0,"reason":""},"technical_skills":{"title":"","score":0,"reason":""},"project_quality":{"title":"","score":0,"reason":""},"resume_writing":{"title":"","score":0,"reason":""},"interview_readiness":{"title":"","score":0,"reason":""},"confidence_score":{"title":"","score":0,"reason":""}},
+                summary="A test candidate", gaps=[], strengths=[], skill_matrix=[], project_reviews=[],
+                experience_review={"is_student":False,"projects_evaluation":"","hackathons_evaluation":"","research_evaluation":"","open_source_evaluation":""},
+                resume_consistency={"summary_aligns_with_projects":True,"skills_align_with_projects":True,"projects_align_with_career_objective":True,"education_supports_domain":True,"dates_consistent":True,"no_duplicates":True,"technologies_consistent":True},
+                ats_analysis={"ats_score":0,"formatting":"","keyword_coverage":"","section_detection":"","date_formatting":"","bullet_quality":"","missing_keywords":[],"parseability":"","recommendations":[]},
+                technical_risks=[], predicted_questions=[]
+            ),
             graph=KnowledgeGraph(nodes=[], edges=[])
         ),
         plan=plan,
@@ -73,7 +81,15 @@ def test_score_interview_hallucinated_criteria(mock_complete_json):
         session_id="test",
         resume=ResumeBundle(
             parsed=ParsedResume(raw_text="", skills=[], projects=[], experience=[], education=[], certifications=[], achievements=[]),
-            analysis=ResumeAnalysis(summary="", strengths=[], gaps=[], ats_issues=[]),
+            analysis=ResumeAnalysis(
+                candidate_profile={"career_stage":"","primary_domain":"","secondary_domain":"","technical_maturity":"","experience_level":"","interview_readiness":"","resume_quality":"","overall_recommendation":""},
+                scores={"overall_resume":{"title":"","score":0,"reason":""},"ats_compatibility":{"title":"","score":0,"reason":""},"technical_skills":{"title":"","score":0,"reason":""},"project_quality":{"title":"","score":0,"reason":""},"resume_writing":{"title":"","score":0,"reason":""},"interview_readiness":{"title":"","score":0,"reason":""},"confidence_score":{"title":"","score":0,"reason":""}},
+                summary="A test candidate", gaps=[], strengths=[], skill_matrix=[], project_reviews=[],
+                experience_review={"is_student":False,"projects_evaluation":"","hackathons_evaluation":"","research_evaluation":"","open_source_evaluation":""},
+                resume_consistency={"summary_aligns_with_projects":True,"skills_align_with_projects":True,"projects_align_with_career_objective":True,"education_supports_domain":True,"dates_consistent":True,"no_duplicates":True,"technologies_consistent":True},
+                ats_analysis={"ats_score":0,"formatting":"","keyword_coverage":"","section_detection":"","date_formatting":"","bullet_quality":"","missing_keywords":[],"parseability":"","recommendations":[]},
+                technical_risks=[], predicted_questions=[]
+            ),
             graph=KnowledgeGraph(nodes=[], edges=[])
         ),
         plan=plan,

@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     liveportrait_reference_face: str = "assets/default_face.jpg"
     # Memory configurations
     short_term_window: int = 6
+    
+    # Termination and struggle policies
+    max_consecutive_weak: int = 3
+    max_consecutive_irrelevant: int = 2
+    max_consecutive_non_answers: int = 2
+    max_recovery_attempts: int = 2
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

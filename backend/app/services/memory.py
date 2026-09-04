@@ -1,4 +1,4 @@
-from app.models.schemas import InterviewState, PerformanceNote, Difficulty
+from app.models.schemas import InterviewState, PerformanceNote, Difficulty, AnswerEvaluation
 from app.config import settings
 
 def build_context(state: InterviewState) -> tuple[str, str]:
@@ -31,17 +31,16 @@ def build_context(state: InterviewState) -> tuple[str, str]:
     elif not representative_notes and older_turns_existed:
         long_term_text = "[Older conversation context omitted]"
     else:
-        notes_str = "; ".join(f"[{n.topic} - Diff: {n.difficulty.value}, Quality: {n.quality}]" for n in representative_notes.values())
+        notes_str = "; ".join(f"[{n.topic} - Diff: {n.difficulty.value}, Quality: {n.evaluation.overall_quality.value}]" for n in representative_notes.values())
         long_term_text = f"--- SUMMARY OF OLDER TURNS (Performance) ---\n{notes_str}"
 
     return short_term_text, long_term_text
 
 
-def record_performance(state: InterviewState, topic: str, difficulty: Difficulty, quality: str) -> None:
+def record_performance(state: InterviewState, topic: str, difficulty: Difficulty, evaluation: AnswerEvaluation) -> None:
     """
     Records a PerformanceNote for a given turn.
     Called once per turn by the engine.
     """
-    # Quality is derived from adaptive_difficulty.quality_from_strategy()
-    note = PerformanceNote(topic=topic, difficulty=difficulty, quality=quality)
+    note = PerformanceNote(topic=topic, difficulty=difficulty, evaluation=evaluation)
     state.performance_notes.append(note)

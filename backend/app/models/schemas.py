@@ -174,6 +174,23 @@ class GrowthRoadmap(BaseModel):
     medium_priority: list[GrowthRecommendation] = Field(default_factory=list)
     low_priority: list[GrowthRecommendation] = Field(default_factory=list)
 
+    @field_validator("high_priority", "medium_priority", "low_priority", mode="before")
+    @classmethod
+    def parse_string_to_dict(cls, v):
+        if not v:
+            return []
+        parsed = []
+        for item in v:
+            if isinstance(item, str):
+                try:
+                    import json
+                    parsed.append(json.loads(item))
+                except Exception:
+                    pass # skip invalid strings
+            else:
+                parsed.append(item)
+        return parsed
+
 class ResumeAnalysis(BaseModel):
     candidate_profile: CandidateProfile
     scores: Scores
@@ -260,6 +277,50 @@ class Difficulty(str, Enum):
     hard = "hard"
 
 
+class QuestionMix(BaseModel):
+    behavioral: float
+    technical: float
+    case_or_system_design: float
+    culture_fit: float
+
+class QuestionMixShift(BaseModel):
+    behavioral: Optional[float] = 0.0
+    technical: Optional[float] = 0.0
+    case_or_system_design: Optional[float] = 0.0
+    culture_fit: Optional[float] = 0.0
+
+class SeniorityModifier(BaseModel):
+    question_mix_shift: QuestionMixShift
+    difficulty_start: str
+    evaluation_emphasis: list[str]
+
+class VocabularyCues(BaseModel):
+    phrases: list[str]
+    avoid: list[str]
+
+class InterviewerPersona(BaseModel):
+    tone: str
+    follow_up_style: str
+    pacing: str
+
+class CompanyStyleProfile(BaseModel):
+    company: str
+    interview_philosophy: str
+    question_mix: QuestionMix
+    signature_formats: list[str]
+    evaluation_dimensions: list[str]
+    interviewer_persona: InterviewerPersona
+    difficulty_curve: str
+    red_flags: list[str]
+    closing_style: str  # Note: Internal generation cue only; do not expose to users.
+    seniority_modifiers: dict[str, SeniorityModifier]
+    vocabulary_cues: VocabularyCues
+    disclaimer: str
+    profile_version: str
+    last_reviewed: str
+    review_notes: str
+
+
 # ---------- Module 5: Interview Planner ----------
 
 class InterviewSection(BaseModel):
@@ -289,27 +350,78 @@ class TranscriptTurn(BaseModel):
 
 
 class InterviewPhase(str, Enum):
-    in_progress = "in_progress"
-    final_section = "final_section"
-    wrapping_up = "wrapping_up"
+    introduction = "introduction"
+    background = "background"
+    technical = "technical"
+    behavioral = "behavioral"
+    closing = "closing"
     complete = "complete"
+
+
+class TerminationReason(str, Enum):
+    normal_completion = "normal_completion"
+    early_insufficient_evidence = "early_insufficient_evidence"
+    early_repeated_non_answers = "early_repeated_non_answers"
+    user_ended = "user_ended"
+
+
+class AnswerQuality(str, Enum):
+    excellent = "excellent"
+    strong = "strong"
+    adequate = "adequate"
+    partial = "partial"
+    weak = "weak"
+    irrelevant = "irrelevant"
+    filler = "filler"
+    evasive = "evasive"
+    incorrect = "incorrect"
+    no_answer = "no_answer"
+
+class AnswerEvaluation(BaseModel):
+    overall_quality: AnswerQuality
+    relevance: float = Field(ge=0, le=1)
+    technical_correctness: float = Field(ge=0, le=1)
+    technical_depth: float = Field(ge=0, le=1)
+    specificity: float = Field(ge=0, le=1)
+    communication: float = Field(ge=0, le=1)
+    reasoning: float = Field(ge=0, le=1)
+    completeness: float = Field(ge=0, le=1)
+    
+    is_filler: bool = False
+    is_evasive: bool = False
+    is_irrelevant: bool = False
+    is_incorrect: bool = False
+    
+    evidence: list[str] = Field(default_factory=list)
+    missing_points: list[str] = Field(default_factory=list)
+    strengths: list[str] = Field(default_factory=list)
+    concerns: list[str] = Field(default_factory=list)
+    
+    confidence: float = Field(ge=0, le=1)
 
 
 class PerformanceNote(BaseModel):
     topic: str
     difficulty: Difficulty
-    quality: str
+    evaluation: AnswerEvaluation
 
 
 class InterviewState(BaseModel):
     session_id: str
     resume: ResumeBundle
     plan: InterviewPlan
+    company_profile: Optional[CompanyStyleProfile] = None
     transcript: list[TranscriptTurn] = Field(default_factory=list)
     covered_topics: list[str] = Field(default_factory=list)
     performance_notes: list[PerformanceNote] = Field(default_factory=list)
     current_difficulty: Difficulty = Difficulty.medium
     turn_count: int = 0
+    current_section_index: int = 0
+    consecutive_weak_answers: int = 0
+    consecutive_irrelevant_answers: int = 0
+    consecutive_non_answers: int = 0
+    recovery_attempts: int = 0
+    termination_reason: Optional[TerminationReason] = None
     is_complete: bool = False
     final_scores: Optional['ScoringResult'] = None
 
@@ -320,6 +432,11 @@ class NextQuestionResponse(BaseModel):
     section: str  # which plan section this question belongs to
     difficulty: Difficulty
     rationale: str  # internal-only: why this question was chosen (deepen/pivot/simplify/follow-up)
+    strategy: str
+    evaluation: Optional[AnswerEvaluation] = None
+    relationship_to_answer: str
+    difficulty_adjustment: str
+    phase: Optional[str] = None
 
 
 # ---------- Module 17: Behavior Engine ----------
@@ -349,11 +466,82 @@ class FeedbackMode(str, Enum):
     written_report = "written_report"
 
 
+class OverallPerformance(BaseModel):
+    summary: str
+    completion_status: str
+    strongest_areas: list[str]
+    weakest_areas: list[str]
+
+class TechnicalKnowledge(BaseModel):
+    technical_correctness: str
+    depth_of_understanding: str
+    implementation_details: str
+    fundamentals: str
+    tradeoffs: str
+    debugging_problem_solving: str
+    system_design: str
+
+class CommunicationAssessment(BaseModel):
+    clarity: str
+    structure: str
+    conciseness: str
+    directness: str
+    explanation_ability: str
+    concrete_examples: str
+
+class ReasoningAbility(BaseModel):
+    problem_breakdown: str
+    explaining_reasoning: str
+    evaluating_alternatives: str
+    reasoning_tradeoffs: str
+    handling_followups: str
+    adaptability: str
+
+class ProjectOwnership(BaseModel):
+    what_built: str
+    responsibilities: str
+    technical_decisions: str
+    challenges: str
+    outcomes: str
+
+class ResumeCredibility(BaseModel):
+    supported_claims: list[str]
+    partially_supported_claims: list[str]
+    unverified_claims: list[str]
+    inconsistencies: list[str]
+
+class WeaknessEvidence(BaseModel):
+    description: str
+    evidence: str
+
+class InterviewBehavior(BaseModel):
+    patterns: list[str]
+
+class ConfidenceLevels(BaseModel):
+    high_confidence: list[str]
+    medium_confidence: list[str]
+    low_confidence: list[str]
+    unassessed: list[str]
+
+class EarlyTerminationContext(BaseModel):
+    termination_reason: str
+    meaningful_answers_collected: int
+    unassessed_dimensions: list[str]
+    assessment_reliability: str
+
 class FeedbackReport(BaseModel):
-    overall_summary: str
+    overall_performance: OverallPerformance
+    technical_knowledge: TechnicalKnowledge
+    communication: CommunicationAssessment
+    reasoning_ability: ReasoningAbility
+    project_ownership: ProjectOwnership
+    resume_credibility: ResumeCredibility
+    technical_weaknesses: list[WeaknessEvidence]
+    communication_weaknesses: list[WeaknessEvidence]
+    interview_behavior: InterviewBehavior
+    confidence_levels: ConfidenceLevels
+    early_termination_context: Optional[EarlyTerminationContext] = None
     scores: list[CriterionScore]
     weighted_overall: float
-    strengths: list[str]
-    weaknesses: list[str]
-    moment_highlights: list[str]  # specific callouts tied to transcript moments
-    recommended_next_steps: list[str]
+    company_style: Optional[str] = None
+    company_disclaimer: Optional[str] = None

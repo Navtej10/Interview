@@ -324,6 +324,9 @@ Never produce markdown.
 
 Never produce explanations outside JSON.
 
+CRITICAL: Keep all string descriptions extremely concise (1-2 sentences maximum) and limit arrays to top items to save tokens.
+
+
 Return JSON exactly matching the ResumeAnalysis schema structure:
 {
   "candidate_profile": { "career_stage": "", "primary_domain": "", "secondary_domain": "", "technical_maturity": "", "experience_level": "", "interview_readiness": "", "resume_quality": "", "overall_recommendation": "" },
@@ -594,8 +597,8 @@ def analyze(parsed: ParsedResume, graph: KnowledgeGraph) -> ResumeAnalysis:
         f"Certifications: {parsed.certifications}\n"
         f"Achievements: {parsed.achievements}"
     )
-    # Give the LLM plenty of tokens for this massive JSON output
-    result = llm.complete_json(SYSTEM_PROMPT, user, max_tokens=6000)
+    # Give the LLM plenty of tokens for this massive JSON output, but keep under 8000 TPM
+    result = llm.complete_json(SYSTEM_PROMPT, user, max_tokens=5500)
 
     raw_gaps = result.get("gaps", [])
     for g in raw_gaps:

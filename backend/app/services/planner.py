@@ -11,19 +11,22 @@ based on how the candidate is actually doing.
 """
 
 from app.services.llm_client import llm
-from app.models.schemas import ResumeBundle, InterviewPlan, InterviewSection, ScoringCriterion
+from app.models.schemas import ResumeBundle, InterviewPlan, InterviewSection, ScoringCriterion, CompanyStyleProfile
 
 SYSTEM_PROMPT = """You are planning a technical mock interview based on a \
-candidate's resume. Design 3-5 sections that together give a well-rounded \
-read on this specific candidate — prioritize their most substantial \
-projects, any claimed skills that look unsupported by their listed \
-experience, and at least one broader technical-reasoning section (system \
-design or problem solving) beyond just resume recall. Order sections from \
-easier/warm-up to harder. Keep total_estimated_turns realistic for a short \
-practice session (aim for 8-14 total turns across all sections).
+candidate's resume. You MUST design exactly 5 sections that follow this realistic progression:
+
+1. Introduction / Warm-up: Greet the candidate naturally, briefly explain the interview structure, and ask them to introduce themselves or 1-2 light questions about their background.
+2. Background / Resume Discussion: Explore their education, projects, internships, work experience, and skills based heavily on their resume.
+3. Technical Interview: Progressively harder technical questions based on the target job/role and technologies in their resume.
+4. Behavioral / Situational Questions: Test problem solving, teamwork, handling failure, conflict, etc.
+5. Interview Ending: Ask if they have anything to add, allow them to ask a final question, thank them, and gracefully close the interview.
+
+Assign an objective, target topics (prioritizing substantial projects and unsupported skills), and difficulty to each section. \
+Keep total_estimated_turns realistic for a short practice session (e.g. 2-3 intro, 2-4 background, 5-8 technical, 2-3 behavioral, 1-2 closing).
 
 Also define a scoring strategy: 3-5 criteria that together weight to 1.0, \
-covering both technical substance and communication.
+covering both technical substance, communication, and behavioral aspects.
 
 Return JSON exactly:
 {
@@ -64,9 +67,37 @@ def _build_plan_from_llm_result(result: dict) -> InterviewPlan:
     )
 
 
-def generate_plan(resume: ResumeBundle) -> InterviewPlan:
+def generate_plan(resume: ResumeBundle, company_profile: CompanyStyleProfile = None, seniority: str = "mid") -> InterviewPlan:
     parsed = resume.parsed
     unsupported = resume.graph.unsupported_skills()
+
+    company_context = ""
+    if company_profile:
+        mix = company_profile.question_mix
+        
+        # Apply seniority modifier shift
+        modifier = company_profile.seniority_modifiers.get(seniority, company_profile.seniority_modifiers.get("mid"))
+        if modifier:
+            shift = modifier.question_mix_shift
+            b = max(0, mix.behavioral + (shift.behavioral or 0.0))
+            t = max(0, mix.technical + (shift.technical or 0.0))
+            c = max(0, mix.case_or_system_design + (shift.case_or_system_design or 0.0))
+            f = max(0, mix.culture_fit + (shift.culture_fit or 0.0))
+            total = b + t + c + f
+            if total > 0:
+                mix.behavioral = b / total
+                mix.technical = t / total
+                mix.case_or_system_design = c / total
+                mix.culture_fit = f / total
+                
+        formats = ", ".join(company_profile.signature_formats)
+        company_context = (
+            f"\n\nCOMPANY STYLE GUIDELINES:\n"
+            f"You are conducting a '{company_profile.company}' style interview.\n"
+            f"Question Mix Targets: {mix.behavioral*100}% behavioral, {mix.technical*100}% technical, {mix.case_or_system_design*100}% system design, {mix.culture_fit*100}% culture fit.\n"
+            f"Signature Formats to include: {formats}.\n"
+            f"Please adapt the section targets and overall plan structure to heavily reflect these targets."
+        )
 
     user = (
         f"Resume summary: {resume.analysis.summary}\n"
@@ -74,6 +105,7 @@ def generate_plan(resume: ResumeBundle) -> InterviewPlan:
         f"Experience: {[f'{e.title} @ {e.company}' for e in parsed.experience]}\n"
         f"Skills: {parsed.skills}\n"
         f"Skills with no clear project/experience backing: {unsupported or 'none'}"
+        f"{company_context}"
     )
     result = llm.complete_json(SYSTEM_PROMPT, user, max_tokens=1800)
     return _build_plan_from_llm_result(result)

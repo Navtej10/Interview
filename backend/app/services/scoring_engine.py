@@ -30,7 +30,23 @@ def score_interview(state: InterviewState, retries: int = 2) -> ScoringResult:
         return ScoringResult(scores=[], weighted_overall=0.0)
 
     criteria_text = "\n".join(f"- {c.name} (weight: {c.weight}): {c.description}" for c in state.plan.scoring_criteria)
-    user_prompt = f"Scoring Criteria:\n{criteria_text}\n\nTranscript:\n{_transcript_text(state)}"
+    
+    company_context = ""
+    if getattr(state, "company_profile", None):
+        dims = state.company_profile.evaluation_dimensions.copy()
+        
+        seniority = getattr(state, "inferred_seniority", "mid")
+        modifier = state.company_profile.seniority_modifiers.get(seniority, state.company_profile.seniority_modifiers.get("mid"))
+        if modifier and modifier.evaluation_emphasis:
+            dims.extend(f"{emp} (HEAVY EMPHASIS)" for emp in modifier.evaluation_emphasis)
+            
+        dims_str = ", ".join(dims)
+        company_context = (
+            f"\n\nCOMPANY EVALUATION DIMENSIONS ({state.company_profile.company}):\n"
+            f"You must explicitly consider these dimensions when assigning scores: {dims_str}\n"
+        )
+        
+    user_prompt = f"Scoring Criteria:\n{criteria_text}{company_context}\n\nTranscript:\n{_transcript_text(state)}"
     
     for attempt in range(retries):
         try:

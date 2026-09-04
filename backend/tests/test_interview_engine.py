@@ -18,10 +18,13 @@ def mock_state():
                 raw_text="mock text",
             ),
             analysis=ResumeAnalysis(
-                summary="A test candidate", 
-                gaps=[],
-                strengths=[],
-                ats_issues=[]
+                candidate_profile={"career_stage":"","primary_domain":"","secondary_domain":"","technical_maturity":"","experience_level":"","interview_readiness":"","resume_quality":"","overall_recommendation":""},
+                scores={"overall_resume":{"title":"","score":0,"reason":""},"ats_compatibility":{"title":"","score":0,"reason":""},"technical_skills":{"title":"","score":0,"reason":""},"project_quality":{"title":"","score":0,"reason":""},"resume_writing":{"title":"","score":0,"reason":""},"interview_readiness":{"title":"","score":0,"reason":""},"confidence_score":{"title":"","score":0,"reason":""}},
+                summary="A test candidate", gaps=[], strengths=[], skill_matrix=[], project_reviews=[],
+                experience_review={"is_student":False,"projects_evaluation":"","hackathons_evaluation":"","research_evaluation":"","open_source_evaluation":""},
+                resume_consistency={"summary_aligns_with_projects":True,"skills_align_with_projects":True,"projects_align_with_career_objective":True,"education_supports_domain":True,"dates_consistent":True,"no_duplicates":True,"technologies_consistent":True},
+                ats_analysis={"ats_score":0,"formatting":"","keyword_coverage":"","section_detection":"","date_formatting":"","bullet_quality":"","missing_keywords":[],"parseability":"","recommendations":[]},
+                technical_risks=[], predicted_questions=[]
             ),
             graph=KnowledgeGraph(nodes=[], edges=[])
         ),
@@ -50,6 +53,7 @@ def mock_state():
 def test_next_question_regression(mock_complete_json, mock_state):
     # Setup mock to return a canned response simulating the LLM decision
     mock_complete_json.return_value = {
+        "evaluation": {"overall_quality": "strong"},
         "question": "What is the GIL?",
         "topic": "python_gil",
         "strategy": "deepen",
@@ -92,6 +96,7 @@ def test_next_question_regression(mock_complete_json, mock_state):
 def test_next_question_invalid_strategy_fallback(mock_complete_json, mock_state):
     # If LLM returns an invalid strategy, it should fallback to "pivot"
     mock_complete_json.return_value = {
+        "evaluation": {"overall_quality": "adequate"},
         "question": "Q?",
         "topic": "t1",
         "strategy": "hallucinated_strategy",
@@ -105,39 +110,10 @@ def test_next_question_invalid_strategy_fallback(mock_complete_json, mock_state)
     
 @patch("app.services.interview_engine.llm.complete_json")
 def test_next_question_duplicate_topic_invalid_strategy(mock_complete_json, mock_state):
-    # Test point 3: topic exactly duplicates immediately preceding question's topic
-    # without "deepen" (or "simplify") strategy.
-    # The immediate preceding interviewer topic in mock_state is "python"
-    
-    # First call to LLM will return a duplicate topic without deepen/simplify
-    invalid_result = {
-        "question": "What about python?",
-        "topic": "python",
-        "strategy": "pivot", # Invalid to pivot to the exact same topic
-        "rationale": ""
-    }
-    
-    # Second call (retry) will return a valid response
-    valid_result = {
-        "question": "What is the GIL?",
-        "topic": "python_gil",
-        "strategy": "pivot",
-        "rationale": ""
-    }
-    
-    mock_complete_json.side_effect = [invalid_result, valid_result]
-    
-    response = next_question(mock_state, "ans")
-    
-    # Assert it caught it and retried (called twice)
-    assert mock_complete_json.call_count == 2
-    
-    # The second call must contain the correction prompt
-    second_call_args = mock_complete_json.call_args_list[1][0]
-    assert "CORRECTION: You kept the topic as 'python' but chose strategy 'pivot'" in second_call_args[1]
-    
-    # The final output is from the valid result
-    assert response.topic == "python_gil"
+    # Test point 3: In the new architecture, we removed the strict strategy rules around topic keeping 
+    # to avoid a second latency-inducing LLM call. Instead, we let the LLM handle it, but we still force a pivot
+    # if it repeats >2 times. This test is simplified.
+    pass
 
 @patch("app.services.interview_engine.llm.complete_json")
 def test_next_question_three_consecutive_topic(mock_complete_json, mock_state):
@@ -146,29 +122,23 @@ def test_next_question_three_consecutive_topic(mock_complete_json, mock_state):
     mock_state.transcript.append(TranscriptTurn(role="candidate", content="A1"))
     mock_state.transcript.append(TranscriptTurn(role="interviewer", content="Q2", topic="t1"))
     
-    # First call returns t1 again (3rd time)
+    # In the single-call architecture, if the topic repeats 3 times, we force a fallback topic
+    # rather than making a second LLM call to save latency.
     invalid_result = {
+        "evaluation": {"overall_quality": "strong"},
         "question": "Q3",
         "topic": "t1",
         "strategy": "deepen",
         "rationale": ""
     }
-    valid_result = {
-        "question": "Q4",
-        "topic": "t2",
-        "strategy": "pivot",
-        "rationale": ""
-    }
     
-    mock_complete_json.side_effect = [invalid_result, valid_result]
+    mock_complete_json.return_value = invalid_result
     
     response = next_question(mock_state, "A2")
     
-    assert mock_complete_json.call_count == 2
-    second_call_args = mock_complete_json.call_args_list[1][0]
-    assert "CORRECTION: You just attempted to ask a 3rd consecutive question on 't1'" in second_call_args[1]
-    
-    assert response.topic == "t2"
+    assert mock_complete_json.call_count == 1
+    assert response.topic == "A new topic"
+    assert response.strategy == "pivot"
 
 @patch("app.services.interview_engine.llm.complete_json")
 def test_next_question_empty_transcript(mock_complete_json, mock_state):
@@ -176,6 +146,7 @@ def test_next_question_empty_transcript(mock_complete_json, mock_state):
     mock_state.transcript = []
     
     mock_complete_json.return_value = {
+        "evaluation": {"overall_quality": "strong"},
         "question": "Q1",
         "topic": "t1",
         "strategy": "pivot",
@@ -196,9 +167,9 @@ def test_next_question_multi_turn_regression(mock_complete_json, mock_state):
     
     # Canned responses for 3 turns
     mock_complete_json.side_effect = [
-        {"question": "Q1", "topic": "t1", "strategy": "deepen", "rationale": "r1"},
-        {"question": "Q2", "topic": "t2", "strategy": "simplify", "rationale": "r2"},
-        {"question": "Q3", "topic": "t3", "strategy": "pivot", "rationale": "r3"}
+        {"evaluation": {"overall_quality": "strong"}, "question": "Q1", "topic": "t1", "strategy": "deepen", "rationale": "r1"},
+        {"evaluation": {"overall_quality": "weak"}, "question": "Q2", "topic": "t2", "strategy": "simplify", "rationale": "r2"},
+        {"evaluation": {"overall_quality": "strong"}, "question": "Q3", "topic": "t3", "strategy": "pivot", "rationale": "r3"}
     ]
     
     # Turn 1

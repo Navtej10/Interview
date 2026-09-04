@@ -11,9 +11,11 @@ type UIState = 'idle' | 'listening' | 'thinking' | 'speaking'
 
 export function InterviewSession({
   resume,
+  companyId,
   onComplete,
 }: {
   resume: ResumeBundle
+  companyId?: string
   onComplete: (sessionId: string) => void
 }) {
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -73,7 +75,7 @@ export function InterviewSession({
     setMode(selectedMode)
     setLoading(true)
     try {
-      const res = await startInterview(resume)
+      const res = await startInterview(resume, companyId)
       setSessionId(res.session_id)
       setPlan(res.plan)
       setCurrentSection(res.section)
@@ -154,7 +156,7 @@ export function InterviewSession({
     }
     
     // Treat every interviewer response as one complete video
-    const blob = new Blob(videoChunksRef.current, { type: 'video/mp4' })
+    const blob = new Blob(videoChunksRef.current as BlobPart[], { type: 'video/mp4' })
     videoChunksRef.current = [] // reset queue
     
     const url = URL.createObjectURL(blob)

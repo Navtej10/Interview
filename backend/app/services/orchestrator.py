@@ -16,7 +16,8 @@ from app.models.schemas import (
     InterviewState,
     TranscriptTurn,
     NextQuestionResponse,
-    InterviewPhase
+    InterviewPhase,
+    Difficulty
 )
 from app.services.resume_parser import parse_resume
 from app.services.resume_analysis import analyze
@@ -28,6 +29,7 @@ from app.services.interview_engine import next_question
 from app.services.feedback_service import generate_written_report, debrief_turn
 from app.models.schemas import FeedbackReport
 from app.services import session_store
+from app.services.company_profiles import get_company_profile
 
 logger = logging.getLogger(__name__)
 
@@ -47,26 +49,54 @@ def analyze_resume(file_bytes: bytes, filename: str) -> ResumeBundle:
         raise
 
 
-def start_interview(resume: ResumeBundle) -> tuple[str, str, str, str, InterviewPlan, str]:
+def start_interview(resume: ResumeBundle, company_id: str = None) -> tuple[str, str, str, str, InterviewPlan, str]:
     """
     Coordinates the initialization of a new interview session.
     Returns: (session_id, question, topic, section_name, plan, rationale)
     """
-    logger.info("Starting new interview session")
+    logger.info(f"Starting new interview session for company {company_id}")
     session_id = str(uuid.uuid4())
 
-    plan = generate_plan(resume)
+    company_profile = get_company_profile(company_id) if company_id else get_company_profile("default")
+
+    # Map seniority
+    exp_level = resume.analysis.candidate_profile.experience_level.lower()
+    career_stage = resume.analysis.candidate_profile.career_stage.lower()
+    
+    seniority = "mid"
+    if any(x in exp_level or x in career_stage for x in ["student", "junior", "entry", "intern"]):
+        seniority = "entry"
+    elif any(x in exp_level or x in career_stage for x in ["staff", "principal", "director"]):
+        seniority = "staff_plus"
+    elif any(x in exp_level or x in career_stage for x in ["senior", "lead", "manager"]):
+        seniority = "senior"
+
+    plan = generate_plan(resume, company_profile, seniority)
     first_section, _ = section_for_question_index(plan, 0)
     question, topic, rationale = generate_opening_question(resume, first_section)
+
+    modifier = company_profile.seniority_modifiers.get(seniority, company_profile.seniority_modifiers.get("mid"))
+    diff_map = {
+        "baseline": Difficulty.easy,
+        "moderate": Difficulty.medium,
+        "elevated": Difficulty.hard
+    }
+    start_diff = diff_map.get(modifier.difficulty_start.lower(), Difficulty.medium) if modifier else Difficulty.medium
 
     state = InterviewState(
         session_id=session_id,
         resume=resume,
         plan=plan,
+        company_profile=company_profile,
         transcript=[TranscriptTurn(role="interviewer", content=question, topic=topic)],
         covered_topics=[topic],
-        current_difficulty=first_section.target_difficulty
+        current_difficulty=start_diff,
+        # we can just store seniority on state by attaching it to the company profile or tracking it, 
+        # actually we don't have a field for it, let's just use the modifier when needed in engines
     )
+    
+    # Store the determined seniority dynamically on the profile instance for easy access downstream
+    setattr(state, "inferred_seniority", seniority)
     session_store.save(state)
     logger.info(f"Session {session_id} started successfully")
 
@@ -305,7 +335,9 @@ def end_interview(session_id: str) -> dict:
     state = get_session(session_id)
         
     state.is_complete = True
-    # The phase is dynamically derived from state, so we don't need to mutate state.phase anymore.
+    if state.termination_reason is None:
+        from app.models.schemas import TerminationReason
+        state.termination_reason = TerminationReason.normal_completion
     session_store.save(state)
     return {"session_id": session_id, "turn_count": state.turn_count}
 

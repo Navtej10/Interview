@@ -3,14 +3,16 @@ import { ResumeUpload } from './components/ResumeUpload'
 import { ResumeAnalysisView } from './components/ResumeAnalysisView'
 import { InterviewSession } from './components/InterviewSession'
 import { FeedbackFlow } from './components/FeedbackFlow'
+import { CompanySelectionView } from './components/CompanySelectionView'
 import type { ResumeBundle } from './types'
 
-type Stage = 'upload' | 'analysis' | 'interview' | 'feedback'
+type Stage = 'upload' | 'analysis' | 'company_selection' | 'interview' | 'feedback'
 
 export default function App() {
   const [stage, setStage] = useState<Stage>('upload')
   const [resume, setResume] = useState<ResumeBundle | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [companyId, setCompanyId] = useState<string>('default')
 
   const goHome = () => {
     if (confirm('Are you sure you want to go home? Current progress will be lost.')) {
@@ -45,17 +47,32 @@ export default function App() {
           <button onClick={() => setStage('upload')} style={{ marginBottom: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
             ← Back to Upload
           </button>
-          <ResumeAnalysisView resume={resume} onContinue={() => setStage('interview')} />
+          <ResumeAnalysisView resume={resume} onContinue={() => setStage('company_selection')} />
+        </div>
+      )}
+
+      {stage === 'company_selection' && resume && (
+        <div>
+          <button onClick={() => setStage('analysis')} style={{ marginBottom: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+            ← Back to Analysis
+          </button>
+          <CompanySelectionView 
+            onSelect={(id) => {
+              setCompanyId(id)
+              setStage('interview')
+            }} 
+          />
         </div>
       )}
 
       {stage === 'interview' && resume && (
         <div>
-          <button onClick={() => setStage('analysis')} style={{ marginBottom: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
-            ← Back to Analysis
+          <button onClick={() => setStage('company_selection')} style={{ marginBottom: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+            ← Back to Company Selection
           </button>
           <InterviewSession
             resume={resume}
+            companyId={companyId}
             onComplete={(id) => {
               setSessionId(id)
               setStage('feedback')

@@ -4,19 +4,88 @@ from app.services import session_store
 from app.services.scoring_engine import score_interview, _transcript_text
 import json
 
-REPORT_SYSTEM_PROMPT = """You are reviewing a completed technical interview \
-transcript. Produce a candid, specific feedback report — no generic \
-platitudes. Reference actual moments from the transcript.
+REPORT_SYSTEM_PROMPT = """You are an expert technical interviewer producing a comprehensive, evidence-based feedback report based strictly on the provided transcript.
+Do NOT invent abilities or deficiencies that were never tested. Do NOT penalize the candidate for grammar or accent.
 
-You have been provided with the pre-calculated scores for the candidate. Use these scores to ground your moment_highlights and strengths/weaknesses.
+You have been provided with the pre-calculated scores for the candidate, as well as an explicit Termination Reason. 
 
-Return JSON exactly:
+CRITICAL EARLY TERMINATION RULES:
+- If Termination Reason indicates the interview ended early (e.g. 'early_insufficient_evidence', 'early_repeated_non_answers'), explicitly acknowledge this in the overall summary.
+- Do NOT claim the candidate lacks knowledge in areas that were planned but not reached. Instead, place them in the 'unassessed' bucket.
+- Do NOT penalize the candidate for topics the interview did not reach. Focus your feedback only on what was actually discussed.
+- Fill out the 'early_termination_context' if the interview ended early.
+
+CRITICAL EVIDENCE RULES:
+- Technical and communication weaknesses MUST be backed by evidence (quote or description of the exact moment).
+- Resume credibility must be segmented. If a claim was never tested, mark it 'unverified', NOT false.
+
+Return JSON exactly matching this structure (omit the comments):
 {
-  "overall_summary": "3-4 sentences",
-  "strengths": ["...", "..."],
-  "weaknesses": ["...", "..."],
-  "moment_highlights": ["quote or paraphrase a specific moment + what it showed, ..."],
-  "recommended_next_steps": ["...", "..."]
+  "overall_performance": {
+    "summary": "...",
+    "completion_status": "...",
+    "strongest_areas": ["..."],
+    "weakest_areas": ["..."]
+  },
+  "technical_knowledge": {
+    "technical_correctness": "...",
+    "depth_of_understanding": "...",
+    "implementation_details": "...",
+    "fundamentals": "...",
+    "tradeoffs": "...",
+    "debugging_problem_solving": "...",
+    "system_design": "..."
+  },
+  "communication": {
+    "clarity": "...",
+    "structure": "...",
+    "conciseness": "...",
+    "directness": "...",
+    "explanation_ability": "...",
+    "concrete_examples": "..."
+  },
+  "reasoning_ability": {
+    "problem_breakdown": "...",
+    "explaining_reasoning": "...",
+    "evaluating_alternatives": "...",
+    "reasoning_tradeoffs": "...",
+    "handling_followups": "...",
+    "adaptability": "..."
+  },
+  "project_ownership": {
+    "what_built": "...",
+    "responsibilities": "...",
+    "technical_decisions": "...",
+    "challenges": "...",
+    "outcomes": "..."
+  },
+  "resume_credibility": {
+    "supported_claims": ["..."],
+    "partially_supported_claims": ["..."],
+    "unverified_claims": ["..."],
+    "inconsistencies": ["..."]
+  },
+  "technical_weaknesses": [
+    {"description": "...", "evidence": "..."}
+  ],
+  "communication_weaknesses": [
+    {"description": "...", "evidence": "..."}
+  ],
+  "interview_behavior": {
+    "patterns": ["..."]
+  },
+  "confidence_levels": {
+    "high_confidence": ["topic1..."],
+    "medium_confidence": ["..."],
+    "low_confidence": ["..."],
+    "unassessed": ["..."]
+  },
+  "early_termination_context": {
+    "termination_reason": "...",
+    "meaningful_answers_collected": 0,
+    "unassessed_dimensions": ["..."],
+    "assessment_reliability": "..."
+  }
 }
 """
 
@@ -45,7 +114,8 @@ def generate_written_report(state: InterviewState) -> FeedbackReport:
     _ensure_scores(state)
     
     scores_text = state.final_scores.model_dump_json(indent=2)
-    user_prompt = f"Scores:\n{scores_text}\n\nTranscript:\n{_transcript_text(state)}"
+    termination_reason = state.termination_reason.value if state.termination_reason else "normal_completion"
+    user_prompt = f"Termination Reason: {termination_reason}\n\nScores:\n{scores_text}\n\nTranscript:\n{_transcript_text(state)}"
     
     result = llm.complete_json(
         REPORT_SYSTEM_PROMPT,
@@ -55,6 +125,11 @@ def generate_written_report(state: InterviewState) -> FeedbackReport:
     
     result["scores"] = state.final_scores.scores
     result["weighted_overall"] = state.final_scores.weighted_overall
+    
+    if getattr(state, "company_profile", None):
+        result["company_style"] = state.company_profile.company
+        result["company_disclaimer"] = state.company_profile.disclaimer
+        
     return FeedbackReport(**result)
 
 

@@ -231,4 +231,55 @@ export interface FeedbackReport {
   weaknesses: string[]
   moment_highlights: string[]
   recommended_next_steps: string[]
+  company_style?: string
+  company_disclaimer?: string
+}
+
+export interface QuestionMix {
+  behavioral: number
+  technical: number
+  case_or_system_design: number
+  culture_fit: number
+}
+
+export interface InterviewerPersona {
+  tone: string
+  follow_up_style: string
+  pacing: string
+}
+
+export interface QuestionMixShift {
+  behavioral?: number
+  technical?: number
+  case_or_system_design?: number
+  culture_fit?: number
+}
+
+export interface SeniorityModifier {
+  question_mix_shift: QuestionMixShift
+  difficulty_start: string
+  evaluation_emphasis: string[]
+}
+
+export interface VocabularyCues {
+  phrases: string[]
+  avoid: string[]
+}
+
+export interface CompanyStyleProfile {
+  company: string
+  interview_philosophy: string
+  question_mix: QuestionMix
+  signature_formats: string[]
+  evaluation_dimensions: string[]
+  interviewer_persona: InterviewerPersona
+  difficulty_curve: string
+  red_flags: string[]
+  closing_style: string
+  seniority_modifiers: Record<string, SeniorityModifier>
+  vocabulary_cues: VocabularyCues
+  disclaimer: string
+  profile_version: string
+  last_reviewed: string
+  review_notes: string
 }

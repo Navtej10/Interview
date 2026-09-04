@@ -45,6 +45,16 @@ export function FeedbackFlow({ sessionId }: { sessionId: string }) {
     return (
       <div>
         <h2>Feedback report</h2>
+        {report.company_style && (
+          <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: '#f8f9fa', borderLeft: '4px solid #0056b3' }}>
+            <strong>Interview Style:</strong> {report.company_style}
+            {report.company_disclaimer && (
+              <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.5rem', fontStyle: 'italic' }}>
+                {report.company_disclaimer}
+              </p>
+            )}
+          </div>
+        )}
         <p>{report.overall_summary}</p>
         <h3>Strengths</h3>
         <ul>{report.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>

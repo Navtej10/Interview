@@ -11,12 +11,13 @@ export async function analyzeResume(file: File): Promise<ResumeBundle> {
 }
 
 export async function startInterview(
-  resume: ResumeBundle
+  resume: ResumeBundle,
+  companyId?: string
 ): Promise<{ session_id: string; question: string; topic: string; section: string; plan: InterviewPlan; rationale: string }> {
   const res = await fetch(`${BASE_URL}/interview/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ resume }),
+    body: JSON.stringify({ resume, company_id: companyId }),
   })
   if (!res.ok) throw new Error('Failed to start interview')
   return res.json()

@@ -5,6 +5,7 @@ import type { ResumeBundle } from '../types'
 export function ResumeUpload({ onAnalyzed }: { onAnalyzed: (r: ResumeBundle) => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   async function handleFile(file: File) {
     setLoading(true)
@@ -25,9 +26,18 @@ export function ResumeUpload({ onAnalyzed }: { onAnalyzed: (r: ResumeBundle) => 
       <input
         type="file"
         accept=".pdf,.docx,.txt"
-        onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+        onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
         disabled={loading}
       />
+      {selectedFile && (
+        <button 
+          onClick={() => handleFile(selectedFile)} 
+          disabled={loading}
+          style={{ marginLeft: '1rem', padding: '0.25rem 0.5rem', cursor: 'pointer' }}
+        >
+          Start analysis
+        </button>
+      )}
       {loading && <p>Analyzing resume…</p>}
       {error && <p role="alert">{error}</p>}
     </div>
