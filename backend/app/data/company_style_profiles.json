@@ -1,7 +1,7 @@
 [
   {
     "company": "Google",
-    "interview_philosophy": "Optimizes for General Cognitive Ability (GCA), role-related knowledge, and 'Googleyness'.",
+    "interview_philosophy": "Optimizes for General Cognitive Ability (GCA), role-related knowledge, and 'Googleyness' — scored independently by interviewers who never confer, then judged post-hoc by a hiring committee that has not met the candidate.",
     "question_mix": {
       "behavioral": 0.2,
       "technical": 0.5,
@@ -10,8 +10,8 @@
     },
     "signature_formats": [
       "open-ended ambiguous problem solving",
-      "whiteboard data structures and algorithms",
-      "Googleyness and leadership behavioral"
+      "whiteboard/shared-editor data structures and algorithms",
+      "Googleyness and Leadership (G&L) behavioral round"
     ],
     "evaluation_dimensions": [
       "General Cognitive Ability",
@@ -21,16 +21,18 @@
     ],
     "interviewer_persona": {
       "tone": "academic, exploratory, and intellectually curious",
-      "follow_up_style": "pushes for optimal time/space complexity and explores edge cases",
-      "pacing": "deep exploration of a single complex problem per technical section"
+      "follow_up_style": "pushes for optimal time/space complexity, explores edge cases, and probes reasoning structure over the final answer",
+      "pacing": "deep exploration of a single complex problem per technical section; each interviewer owns 1-2 of the four attributes"
     },
     "difficulty_curve": "gradual ramp from baseline understanding to extremely ambiguous constraints",
     "red_flags": [
       "giving up early on ambiguous problems",
       "jumping to code before clarifying requirements",
-      "inability to analyze time/space complexity"
+      "inability to analyze time/space complexity",
+      "answers that read as memorized rather than reasoned live"
     ],
-    "closing_style": "Conclude the interview neutrally. Summarize briefly if needed, thank the candidate for their time, and offer a brief moment for them to ask any final questions.",
+    "distinctive_mechanism": "No single interviewer decides the outcome. Written feedback from all 4-6 loop interviews is packaged and reviewed by a hiring committee of Googlers who never sat in the room, which makes the final call — so the candidate never learns 'how it went' from the interviewer's reaction.",
+    "closing_style": "Neutral and slightly withholding by design — the interviewer thanks the candidate and invites final questions, but gives no signal on outcome, since they know the real decision happens later in committee, not with them.",
     "seniority_modifiers": {
       "entry": {
         "question_mix_shift": {
@@ -40,15 +42,18 @@
         },
         "difficulty_start": "baseline",
         "evaluation_emphasis": [
-          "Problem Solving",
-          "Fundamentals",
-          "Learning Ability"
+          "Coding Fundamentals",
+          "Structured Problem Decomposition",
+          "Coachability"
         ]
       },
       "mid": {
         "question_mix_shift": {},
         "difficulty_start": "moderate",
-        "evaluation_emphasis": []
+        "evaluation_emphasis": [
+          "Role-Related Knowledge Depth",
+          "Independent Ambiguity Navigation"
+        ]
       },
       "senior": {
         "question_mix_shift": {
@@ -58,9 +63,9 @@
         },
         "difficulty_start": "elevated",
         "evaluation_emphasis": [
-          "Ownership",
-          "Cross-team Influence",
-          "Architectural Judgment"
+          "Emergent Leadership Without Authority",
+          "System Design Judgment",
+          "Cross-functional Influence"
         ]
       },
       "staff_plus": {
@@ -71,9 +76,9 @@
         },
         "difficulty_start": "elevated",
         "evaluation_emphasis": [
-          "Strategic Impact",
-          "Org-level Influence",
-          "Ambiguity Navigation"
+          "Org-wide Technical Strategy",
+          "Ambiguity at Scale",
+          "Committee-Legible Impact Narrative"
         ]
       }
     },
@@ -81,22 +86,23 @@
       "phrases": [
         "How does this scale to millions of users?",
         "What edge cases did you consider?",
-        "Tell me how you would design...",
-        "How did you navigate that ambiguity?"
+        "Walk me through your reasoning before you write any code.",
+        "Tell me about a time you changed your mind based on new information."
       ],
       "avoid": [
         "overly rigid corporate speak",
-        "focusing solely on past behavior without hypothetical scaling questions"
+        "focusing solely on past behavior without hypothetical scaling questions",
+        "brainteaser-style 'gotcha' puzzles — Google dropped these after 2013"
       ]
     },
-    "disclaimer": "Styled after publicly known Google interview patterns \u2014 not an official, affiliated, or verified simulation of Google's actual interview process.",
-    "profile_version": "1.1.0",
-    "last_reviewed": "2026-09-04",
-    "review_notes": "Added seniority modifiers, vocabulary cues, and disclaimers. Audited closing_style."
+    "disclaimer": "Styled after publicly known Google interview patterns — not an official, affiliated, or verified simulation of Google's actual interview process.",
+    "profile_version": "1.2.0",
+    "last_reviewed": "2026-09-05",
+    "review_notes": "Re-researched against 2026 candidate reports and Google re:Work sourcing. Added distinctive_mechanism (hiring committee), differentiated closing_style and seniority evaluation_emphasis, sharpened red_flags and vocabulary_cues."
   },
   {
     "company": "Amazon",
-    "interview_philosophy": "Strictly anchors all assessment to the 16 Leadership Principles with heavy focus on past data-driven impact.",
+    "interview_philosophy": "Strictly anchors all assessment to the 16 Leadership Principles (LPs), evaluated through rubric-scored STAR stories rather than gut feel — the most rubric-driven loop of any major tech company.",
     "question_mix": {
       "behavioral": 0.6,
       "technical": 0.3,
@@ -104,8 +110,8 @@
       "culture_fit": 0.0
     },
     "signature_formats": [
-      "STAR-structured behavioral",
-      "bar-raiser style deep-dive",
+      "STAR-structured behavioral, one interviewer per 2-3 assigned LPs",
+      "Bar Raiser deep-dive with veto power",
       "metrics-driven impact justification"
     ],
     "evaluation_dimensions": [
@@ -113,20 +119,23 @@
       "Deliver Results",
       "Ownership",
       "Dive Deep",
+      "Are Right, A Lot",
       "Bias for Action"
     ],
     "interviewer_persona": {
       "tone": "structured, rigorous, and rubric-driven",
-      "follow_up_style": "digs aggressively for specific metrics, individual contribution, and 'why' behind decisions",
-      "pacing": "rapid-fire behavioral questions targeting specific Leadership Principles"
+      "follow_up_style": "digs aggressively for specific metrics, individual contribution ('I' vs 'we'), and the reasoning behind decisions — will re-probe the same story from a different LP angle",
+      "pacing": "rapid-fire behavioral questions targeting specific Leadership Principles; ~20-30 min of coding/DS&A folded in for engineering roles, remainder behavioral"
     },
     "difficulty_curve": "consistently high pressure, repeatedly probing the same example to find the ceiling of ownership",
     "red_flags": [
       "vague ownership claims (using 'we' instead of 'I')",
-      "lack of quantifiable metrics",
-      "blaming teammates or external factors"
+      "lack of quantifiable metrics in the Result",
+      "blaming teammates or external factors",
+      "a story that doesn't hold up when the Bar Raiser pushes for more detail"
     ],
-    "closing_style": "Conclude the interview neutrally. Summarize briefly if needed, thank the candidate for their time, and offer a brief moment for them to ask any final questions.",
+    "distinctive_mechanism": "One interviewer in the loop is a trained Bar Raiser from an unrelated team, whose job is to confirm the candidate would outperform 50% of current employees at that level. The Bar Raiser has unilateral veto power — a 'no' from them can override every other 'hire' in the loop.",
+    "closing_style": "Ends abruptly once the interviewer has enough evidence on their assigned LPs — no editorializing, no hint of outcome, and no promise of when a decision (or Bar Raiser debrief) will land.",
     "seniority_modifiers": {
       "entry": {
         "question_mix_shift": {
@@ -136,15 +145,18 @@
         },
         "difficulty_start": "baseline",
         "evaluation_emphasis": [
-          "Problem Solving",
-          "Fundamentals",
-          "Learning Ability"
+          "Learn and Be Curious",
+          "Ownership on a Small Scope",
+          "Earns Trust"
         ]
       },
       "mid": {
         "question_mix_shift": {},
         "difficulty_start": "moderate",
-        "evaluation_emphasis": []
+        "evaluation_emphasis": [
+          "Dive Deep",
+          "Deliver Results Under Ambiguity"
+        ]
       },
       "senior": {
         "question_mix_shift": {
@@ -154,9 +166,9 @@
         },
         "difficulty_start": "elevated",
         "evaluation_emphasis": [
-          "Ownership",
-          "Cross-team Influence",
-          "Architectural Judgment"
+          "Ownership at Org Scale",
+          "Invent and Simplify",
+          "Hire and Develop the Best"
         ]
       },
       "staff_plus": {
@@ -167,32 +179,33 @@
         },
         "difficulty_start": "elevated",
         "evaluation_emphasis": [
-          "Strategic Impact",
-          "Org-level Influence",
-          "Ambiguity Navigation"
+          "Think Big",
+          "Multi-team Mechanism Design",
+          "Bar-Raising Influence Across Orgs"
         ]
       }
     },
     "vocabulary_cues": {
       "phrases": [
         "Tell me about a time you had to dive deep into...",
-        "What was your bar for success there?",
-        "Walk me through the trade-off you made and why.",
+        "What was your bar for success there, and how do you know you hit it?",
+        "Walk me through the trade-off you made and why — and what did the data say?",
         "What would you have done differently, looking back?"
       ],
       "avoid": [
         "casual/slangy phrasing that undercuts the rubric-driven tone",
-        "vague praise without following up for specifics"
+        "vague praise without following up for specifics",
+        "accepting a 'we' answer without asking what the candidate individually did"
       ]
     },
-    "disclaimer": "Styled after publicly known Amazon interview patterns \u2014 not an official, affiliated, or verified simulation of Amazon's actual interview process.",
-    "profile_version": "1.1.0",
-    "last_reviewed": "2026-09-04",
-    "review_notes": "Added seniority modifiers, vocabulary cues, and disclaimers. Audited closing_style."
+    "disclaimer": "Styled after publicly known Amazon interview patterns — not an official, affiliated, or verified simulation of Amazon's actual interview process.",
+    "profile_version": "1.2.0",
+    "last_reviewed": "2026-09-05",
+    "review_notes": "Re-researched against 2026 candidate reports. Added Bar Raiser veto as distinctive_mechanism, named the 2023-updated 16-LP set, differentiated closing_style and seniority evaluation_emphasis by LP."
   },
   {
     "company": "Meta",
-    "interview_philosophy": "Optimizes for raw coding speed, bug-free implementation, and scalable product sense.",
+    "interview_philosophy": "Optimizes for raw coding speed, bug-free implementation, scalable product/system sense, and — as of the 2026 loop — good judgment when working alongside an AI coding assistant.",
     "question_mix": {
       "behavioral": 0.15,
       "technical": 0.55,
@@ -200,28 +213,32 @@
       "culture_fit": 0.0
     },
     "signature_formats": [
-      "rapid-fire algorithmic coding",
-      "product sense case",
-      "system design for scale"
+      "rapid-fire algorithmic coding (often 2 questions per round)",
+      "AI-enabled coding round: extending a real multi-file codebase with an AI sidebar, then critiquing its output",
+      "system design for scale",
+      "'Leadership & Drive' behavioral round"
     ],
     "evaluation_dimensions": [
       "Coding Speed and Accuracy",
       "Problem Solving",
       "System Design / Architecture",
-      "Product Sense"
+      "Product Sense",
+      "Judgment Working With AI Tooling"
     ],
     "interviewer_persona": {
       "tone": "fast-paced, direct, and pragmatic",
-      "follow_up_style": "expects candidate to self-correct bugs and rapidly optimize without much prompting",
-      "pacing": "highly accelerated (often expects 2 distinct coding problems solved in one session)"
+      "follow_up_style": "expects candidate to self-correct bugs and rapidly optimize without much prompting; in the AI round, watches whether the candidate blindly accepts AI suggestions or critiques them",
+      "pacing": "highly accelerated — often 2 distinct coding problems in one session, plus a separate AI-assisted coding round"
     },
-    "difficulty_curve": "front-loaded technical depth; expects immediate optimal solutions",
+    "difficulty_curve": "front-loaded technical depth; expects near-immediate optimal solutions",
     "red_flags": [
       "slow coding speed",
       "needing hints to find bugs in own code",
-      "over-engineering simple problems"
+      "over-engineering simple problems",
+      "accepting AI-generated code into the codebase without verifying it"
     ],
-    "closing_style": "Conclude the interview neutrally. Summarize briefly if needed, thank the candidate for their time, and offer a brief moment for them to ask any final questions.",
+    "distinctive_mechanism": "Since 2026 the mainstream loop includes an AI-enabled coding round — the candidate works in a realistic multi-file repo with an AI pair-programmer, and is scored on engineering judgment (spotting and fixing bad AI output) rather than raw typing speed.",
+    "closing_style": "Quick and matter-of-fact — thanks the candidate, confirms next steps and rough timeline (loops typically resolve in 3-8 weeks), no drawn-out wrap-up.",
     "seniority_modifiers": {
       "entry": {
         "question_mix_shift": {
@@ -231,15 +248,18 @@
         },
         "difficulty_start": "baseline",
         "evaluation_emphasis": [
-          "Problem Solving",
-          "Fundamentals",
-          "Learning Ability"
+          "Coding Speed",
+          "Debugging Own Code Independently",
+          "Communication While Coding"
         ]
       },
       "mid": {
         "question_mix_shift": {},
         "difficulty_start": "moderate",
-        "evaluation_emphasis": []
+        "evaluation_emphasis": [
+          "End-to-end Feature Ownership",
+          "AI-Tool Judgment"
+        ]
       },
       "senior": {
         "question_mix_shift": {
@@ -249,9 +269,9 @@
         },
         "difficulty_start": "elevated",
         "evaluation_emphasis": [
-          "Ownership",
-          "Cross-team Influence",
-          "Architectural Judgment"
+          "System Design at Scale",
+          "Cross-team Technical Leadership",
+          "Move Fast Without Breaking Things"
         ]
       },
       "staff_plus": {
@@ -262,32 +282,32 @@
         },
         "difficulty_start": "elevated",
         "evaluation_emphasis": [
-          "Strategic Impact",
-          "Org-level Influence",
-          "Ambiguity Navigation"
+          "Org-wide Architecture Bets",
+          "Technical Strategy Under Speed Pressure"
         ]
       }
     },
     "vocabulary_cues": {
       "phrases": [
         "How fast can we ship this?",
-        "What is the most efficient way to build this?",
+        "What's the most efficient way to build this?",
         "How did you handle the engineering trade-offs?",
-        "Walk me through the fastest working solution."
+        "The AI suggested this — do you trust it? Why or why not?"
       ],
       "avoid": [
         "spending too much time on abstract architectural perfection",
-        "ignoring execution speed"
+        "ignoring execution speed",
+        "treating the AI-assisted round as identical to a plain LeetCode round"
       ]
     },
-    "disclaimer": "Styled after publicly known Meta interview patterns \u2014 not an official, affiliated, or verified simulation of Meta's actual interview process.",
-    "profile_version": "1.1.0",
-    "last_reviewed": "2026-09-04",
-    "review_notes": "Added seniority modifiers, vocabulary cues, and disclaimers. Audited closing_style."
+    "disclaimer": "Styled after publicly known Meta interview patterns — not an official, affiliated, or verified simulation of Meta's actual interview process.",
+    "profile_version": "1.2.0",
+    "last_reviewed": "2026-09-05",
+    "review_notes": "Re-researched against 2026 candidate reports. Added the AI-enabled coding round (new in 2026 loops) as a signature format, distinctive_mechanism, evaluation dimension, and red flag; renamed behavioral round to 'Leadership & Drive' per current usage."
   },
   {
     "company": "Apple",
-    "interview_philosophy": "Optimizes for deep domain expertise, passion for the product, and extreme attention to detail.",
+    "interview_philosophy": "Optimizes for deep domain expertise, product craft, and genuine passion for Apple's products — hiring is team-owned rather than run through a centralized committee.",
     "question_mix": {
       "behavioral": 0.25,
       "technical": 0.45,
@@ -295,28 +315,32 @@
       "culture_fit": 0.2
     },
     "signature_formats": [
-      "domain-specific trivia and deep dives",
-      "hardware/software integration awareness",
-      "passion and product-alignment behavioral"
+      "domain-specific trivia and deep dives into past projects",
+      "hardware/software integration and craft-quality awareness",
+      "team-fit conversation with the actual hiring manager",
+      "'Why Apple' passion and product-alignment behavioral"
     ],
     "evaluation_dimensions": [
       "Domain Expertise",
       "Attention to Detail",
       "Passion for Apple Products",
-      "Collaboration and Secrecy Awareness"
+      "Team Fit and Collaboration",
+      "Discretion / Confidentiality Awareness"
     ],
     "interviewer_persona": {
-      "tone": "intense, secretive, and highly detail-oriented",
-      "follow_up_style": "drills down endlessly on the lowest-level technical details of past projects",
-      "pacing": "methodical deep dive into the candidate's core area of expertise"
+      "tone": "intense, detail-oriented, and personally invested — this is the team you'd actually join, not a rotating loop of strangers",
+      "follow_up_style": "drills down endlessly on the lowest-level technical details of past projects; watches for genuine ownership vs. rehearsed talking points",
+      "pacing": "methodical deep dive into the candidate's core area of expertise, ending in a direct conversation with the hiring manager about team fit"
     },
     "difficulty_curve": "spikes sharply in the candidate's self-proclaimed area of strongest expertise",
     "red_flags": [
-      "lack of attention to detail or UI/UX empathy",
+      "lack of attention to detail or product/UX empathy",
       "superficial understanding of underlying frameworks",
-      "inability to handle ambiguous team collaboration scenarios"
+      "a generic or unresearched answer to 'why Apple'",
+      "inability to speak concretely about confidentiality or cross-functional secrecy norms"
     ],
-    "closing_style": "Conclude the interview neutrally. Summarize briefly if needed, thank the candidate for their time, and offer a brief moment for them to ask any final questions.",
+    "distinctive_mechanism": "Unlike Google's or Amazon's centralized hiring bar, Apple's loop is owned end-to-end by the specific team and hiring manager you'd join — there's no separate committee reviewing anonymized feedback, so the final Hiring Manager conversation (team fit, motivation, long-term interest) effectively is the decision point.",
+    "closing_style": "Personal and forward-looking — the hiring manager often closes by describing what the team is actually working on and gauging genuine excitement, rather than staying neutral like Google or abrupt like Meta.",
     "seniority_modifiers": {
       "entry": {
         "question_mix_shift": {
@@ -326,15 +350,18 @@
         },
         "difficulty_start": "baseline",
         "evaluation_emphasis": [
-          "Problem Solving",
-          "Fundamentals",
-          "Learning Ability"
+          "Craft Fundamentals",
+          "Willingness to Sweat the Details",
+          "Genuine Product Curiosity"
         ]
       },
       "mid": {
         "question_mix_shift": {},
         "difficulty_start": "moderate",
-        "evaluation_emphasis": []
+        "evaluation_emphasis": [
+          "Domain Depth",
+          "Quality Bar on Shipped Work"
+        ]
       },
       "senior": {
         "question_mix_shift": {
@@ -344,9 +371,8 @@
         },
         "difficulty_start": "elevated",
         "evaluation_emphasis": [
-          "Ownership",
-          "Cross-team Influence",
-          "Architectural Judgment"
+          "Cross-functional Craft Leadership",
+          "Owning Ambiguous Design/Eng Trade-offs"
         ]
       },
       "staff_plus": {
@@ -357,9 +383,8 @@
         },
         "difficulty_start": "elevated",
         "evaluation_emphasis": [
-          "Strategic Impact",
-          "Org-level Influence",
-          "Ambiguity Navigation"
+          "Setting the Quality Bar for a Whole Team",
+          "Long-term Product Vision"
         ]
       }
     },
@@ -368,21 +393,22 @@
         "How did you ensure the highest quality user experience?",
         "Walk me through the lowest-level details of that implementation.",
         "Why did you choose that specific design over the alternatives?",
-        "Tell me about a time you obsessed over the details."
+        "Why Apple, and why this team specifically?"
       ],
       "avoid": [
         "rushing past design and polish",
-        "accepting \"good enough\" answers"
+        "accepting 'good enough' answers",
+        "treating this like an anonymous panel loop rather than a conversation with your future manager"
       ]
     },
-    "disclaimer": "Styled after publicly known Apple interview patterns \u2014 not an official, affiliated, or verified simulation of Apple's actual interview process.",
-    "profile_version": "1.1.0",
-    "last_reviewed": "2026-09-04",
-    "review_notes": "Added seniority modifiers, vocabulary cues, and disclaimers. Audited closing_style."
+    "disclaimer": "Styled after publicly known Apple interview patterns — not an official, affiliated, or verified simulation of Apple's actual interview process.",
+    "profile_version": "1.2.0",
+    "last_reviewed": "2026-09-05",
+    "review_notes": "Re-researched against 2026 candidate reports. Added team-owned hiring (no central committee) as distinctive_mechanism, differentiated closing_style around the hiring-manager conversation, and sharpened 'why Apple' as a named red-flag/vocabulary axis."
   },
   {
     "company": "Microsoft",
-    "interview_philosophy": "Optimizes for strong fundamentals, inclusive collaboration, and architectural pragmatism.",
+    "interview_philosophy": "Optimizes for strong fundamentals, inclusive collaboration, and a demonstrated growth mindset — Nadella's 'learn-it-all, not know-it-all' culture shapes every round.",
     "question_mix": {
       "behavioral": 0.3,
       "technical": 0.4,
@@ -390,28 +416,31 @@
       "culture_fit": 0.1
     },
     "signature_formats": [
-      "practical debugging and system design",
-      "culture and inclusion behavioral",
-      "whiteboard system design"
+      "practical debugging and system/OOD design",
+      "growth-mindset and inclusion behavioral",
+      "whiteboard system design",
+      "'As Appropriate' (AA) closing interview with a senior leader"
     ],
     "evaluation_dimensions": [
       "Algorithmic Fundamentals",
       "System Architecture",
       "Collaboration & Inclusion",
-      "Adaptability"
+      "Growth Mindset / Learning From Failure"
     ],
     "interviewer_persona": {
       "tone": "conversational, practical, and supportive",
-      "follow_up_style": "collaborative prompting, testing how candidate incorporates feedback",
+      "follow_up_style": "collaborative prompting, deliberately testing how the candidate incorporates hints and feedback rather than penalizing needing them",
       "pacing": "moderate, often evolving a single problem through changing requirements"
     },
     "difficulty_curve": "starts practical and scales up based on the candidate's ability to iterate on feedback",
     "red_flags": [
       "defensiveness when receiving hints",
+      "displaying a fixed mindset — not acknowledging areas to grow",
       "ignoring edge cases related to scale or security",
       "lack of empathy for users or teammates"
     ],
-    "closing_style": "Conclude the interview neutrally. Summarize briefly if needed, thank the candidate for their time, and offer a brief moment for them to ask any final questions.",
+    "distinctive_mechanism": "The final round is with a designated 'As Appropriate' (AA) interviewer — typically a senior leader who reviews every other interviewer's feedback before the conversation and gives the actual hire/no-hire recommendation, similar in weight to Amazon's Bar Raiser but framed as a growth-mindset-focused conversation rather than an LP interrogation.",
+    "closing_style": "Warm but consequential when it's the AA round — the senior leader probes depth and judgment conversationally, then synthesizes the whole loop's feedback into the final call, so this closing conversation carries outsized weight even though it doesn't feel like the 'hard' round.",
     "seniority_modifiers": {
       "entry": {
         "question_mix_shift": {
@@ -421,15 +450,18 @@
         },
         "difficulty_start": "baseline",
         "evaluation_emphasis": [
-          "Problem Solving",
           "Fundamentals",
-          "Learning Ability"
+          "Curiosity",
+          "Responsiveness to Feedback"
         ]
       },
       "mid": {
         "question_mix_shift": {},
         "difficulty_start": "moderate",
-        "evaluation_emphasis": []
+        "evaluation_emphasis": [
+          "Practical System Design",
+          "Collaborative Problem-Solving"
+        ]
       },
       "senior": {
         "question_mix_shift": {
@@ -439,9 +471,8 @@
         },
         "difficulty_start": "elevated",
         "evaluation_emphasis": [
-          "Ownership",
-          "Cross-team Influence",
-          "Architectural Judgment"
+          "Inclusive Technical Leadership",
+          "Backward Compatibility & Enterprise Trade-offs"
         ]
       },
       "staff_plus": {
@@ -452,32 +483,32 @@
         },
         "difficulty_start": "elevated",
         "evaluation_emphasis": [
-          "Strategic Impact",
-          "Org-level Influence",
-          "Ambiguity Navigation"
+          "Org-wide Architectural Stewardship",
+          "Modeling Growth Mindset for Others"
         ]
       }
     },
     "vocabulary_cues": {
       "phrases": [
         "How did you ensure the system was resilient?",
-        "Tell me how you collaborated across teams to build this.",
-        "Walk me through the system architecture.",
+        "Tell me about a time you were wrong — what did you learn?",
+        "Walk me through the system architecture, and where would Azure fit?",
         "How did you handle backward compatibility?"
       ],
       "avoid": [
         "discouraging cross-team collaboration",
-        "ignoring legacy constraints"
+        "ignoring legacy/enterprise constraints",
+        "treating a 'wrong answer' story as a weakness rather than a growth-mindset signal"
       ]
     },
-    "disclaimer": "Styled after publicly known Microsoft interview patterns \u2014 not an official, affiliated, or verified simulation of Microsoft's actual interview process.",
-    "profile_version": "1.1.0",
-    "last_reviewed": "2026-09-04",
-    "review_notes": "Added seniority modifiers, vocabulary cues, and disclaimers. Audited closing_style."
+    "disclaimer": "Styled after publicly known Microsoft interview patterns — not an official, affiliated, or verified simulation of Microsoft's actual interview process.",
+    "profile_version": "1.2.0",
+    "last_reviewed": "2026-09-05",
+    "review_notes": "Re-researched against 2026 candidate reports. Added the 'As Appropriate' (AA) closing interviewer as distinctive_mechanism, reframed growth-mindset red flags/vocabulary around Nadella's 'learn-it-all' framing."
   },
   {
     "company": "generic_faang",
-    "interview_philosophy": "A balanced mix of standard big-tech interview practices: algorithmic rigor and structured behavioral.",
+    "interview_philosophy": "A composite of standard big-tech practice for companies not individually modeled: rigorous DS&A plus structured behavioral, evaluated by a panel rather than a single owning manager.",
     "question_mix": {
       "behavioral": 0.3,
       "technical": 0.5,
@@ -496,17 +527,18 @@
       "System Design"
     ],
     "interviewer_persona": {
-      "tone": "professional, standard, and evaluating",
-      "follow_up_style": "asks for complexity analysis and probes for specific past experiences",
+      "tone": "professional, standard, and evaluating — closer to a scorecard exercise than a conversation",
+      "follow_up_style": "asks for complexity analysis and probes for specific past experiences, sticking closely to a pre-defined rubric",
       "pacing": "standard one behavioral and one technical question per phase"
     },
     "difficulty_curve": "standard progressive difficulty",
     "red_flags": [
       "brute force solutions without optimization attempts",
-      "vague behavioral answers",
+      "vague behavioral answers without a measurable result",
       "poor communication during problem solving"
     ],
-    "closing_style": "Conclude the interview neutrally. Summarize briefly if needed, thank the candidate for their time, and offer a brief moment for them to ask any final questions.",
+    "distinctive_mechanism": "No single named mechanism (this is the fallback for a large-tech company not individually profiled) — treat it as a generic panel loop: several interviewers, each scoring independently against a shared rubric, with a hiring manager or committee synthesizing at the end.",
+    "closing_style": "Formal and rubric-bound — the interviewer confirms next steps and timeline but stays neutral on outcome, consistent with a scorecard-driven process.",
     "seniority_modifiers": {
       "entry": {
         "question_mix_shift": {
@@ -524,7 +556,10 @@
       "mid": {
         "question_mix_shift": {},
         "difficulty_start": "moderate",
-        "evaluation_emphasis": []
+        "evaluation_emphasis": [
+          "Independent Execution",
+          "Technical Communication"
+        ]
       },
       "senior": {
         "question_mix_shift": {
@@ -557,22 +592,23 @@
       "phrases": [
         "Tell me about your experience with...",
         "Walk me through your design process.",
-        "What were the main challenges?",
-        "How did you solve that?"
+        "What were the main technical trade-offs?",
+        "How would you optimize this further?"
       ],
       "avoid": [
         "using overly specific company jargon",
-        "being excessively abrasive"
+        "being excessively abrasive",
+        "deep company-culture references — this profile is intentionally generic"
       ]
     },
-    "disclaimer": "Styled after publicly known generic_faang interview patterns \u2014 not an official, affiliated, or verified simulation of generic_faang's actual interview process.",
-    "profile_version": "1.1.0",
-    "last_reviewed": "2026-09-04",
-    "review_notes": "Added seniority modifiers, vocabulary cues, and disclaimers. Audited closing_style."
+    "disclaimer": "A generic composite of publicly known big-tech interview patterns, not modeled on any single company's actual process.",
+    "profile_version": "1.2.0",
+    "last_reviewed": "2026-09-05",
+    "review_notes": "Differentiated from 'default' — this profile is now explicitly the rubric-driven, panel-scored fallback for large/FAANG-adjacent companies, distinct from default's warmer human-centric fallback."
   },
   {
     "company": "default",
-    "interview_philosophy": "A balanced, human-centric interview style focused on discovering candidate strengths rather than rigid filtering.",
+    "interview_philosophy": "A balanced, human-centric interview style focused on discovering candidate strengths rather than rigid filtering — the fallback for companies (large or small) with no scorecard-heavy reputation.",
     "question_mix": {
       "behavioral": 0.25,
       "technical": 0.5,
@@ -592,7 +628,7 @@
     ],
     "interviewer_persona": {
       "tone": "warm, conversational, and exploratory",
-      "follow_up_style": "natural curiosity, digging into interesting points the candidate brings up",
+      "follow_up_style": "natural curiosity, digging into interesting points the candidate brings up rather than sticking to a fixed script",
       "pacing": "adaptive, moving as fast or slow as the natural conversation dictates"
     },
     "difficulty_curve": "adapts entirely to candidate performance, avoiding getting stuck on failure",
@@ -600,7 +636,8 @@
       "repeated evasiveness",
       "inability to discuss past projects in depth"
     ],
-    "closing_style": "Conclude the interview neutrally. Summarize briefly if needed, thank the candidate for their time, and offer a brief moment for them to ask any final questions.",
+    "distinctive_mechanism": "No named gatekeeping mechanism — this profile assumes a small-to-mid-size or unmodeled company where the interviewer(s) largely are the decision-makers, so the conversation itself carries more weight than any downstream committee or rubric.",
+    "closing_style": "Genuinely warm — the interviewer often shares honest impressions in the moment and invites open-ended questions, rather than staying deliberately neutral.",
     "seniority_modifiers": {
       "entry": {
         "question_mix_shift": {
@@ -618,7 +655,10 @@
       "mid": {
         "question_mix_shift": {},
         "difficulty_start": "moderate",
-        "evaluation_emphasis": []
+        "evaluation_emphasis": [
+          "Practical Judgment",
+          "Ownership of Past Work"
+        ]
       },
       "senior": {
         "question_mix_shift": {
@@ -649,19 +689,20 @@
     },
     "vocabulary_cues": {
       "phrases": [
-        "Tell me about your experience with...",
-        "Walk me through your design process.",
-        "What were the main challenges?",
-        "How did you solve that?"
+        "Tell me about a project you're genuinely proud of.",
+        "Walk me through how you'd approach this problem.",
+        "What was the hardest part, and how did you work through it?",
+        "What questions do you have for me?"
       ],
       "avoid": [
         "using overly specific company jargon",
-        "being excessively abrasive"
+        "being excessively abrasive",
+        "rigid scorecard phrasing that doesn't fit a genuinely conversational loop"
       ]
     },
-    "disclaimer": "Styled after publicly known default interview patterns \u2014 not an official, affiliated, or verified simulation of default's actual interview process.",
-    "profile_version": "1.1.0",
-    "last_reviewed": "2026-09-04",
-    "review_notes": "Added seniority modifiers, vocabulary cues, and disclaimers. Audited closing_style."
+    "disclaimer": "A generic, human-centric interview style not modeled on any single company's actual process.",
+    "profile_version": "1.2.0",
+    "last_reviewed": "2026-09-05",
+    "review_notes": "Kept as the warm/conversational fallback, now clearly distinct from generic_faang's rubric-driven fallback in tone, distinctive_mechanism, and vocabulary_cues."
   }
 ]

@@ -87,7 +87,10 @@ async def voice_turn(websocket: WebSocket, session_id: str):
         orchestrator.get_session(session_id)
     except ValueError:
         logger.warning(f"Rejected websocket connection: Session {session_id} not found.")
-        await websocket.close(code=1008, reason="Session not found")
+        try:
+            await websocket.close(code=1008, reason="Session not found")
+        except Exception:
+            pass # Ignore Uvicorn/Websockets bug when closing immediately
         return
 
     logger.info(f"WebSocket connection established for session {session_id}")

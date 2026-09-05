@@ -43,7 +43,19 @@ Return JSON exactly:
 
 def _build_plan_from_llm_result(result: dict) -> InterviewPlan:
     """Helper to construct and validate an InterviewPlan from LLM JSON output."""
-    sections = [InterviewSection(**s) for s in result.get("sections", [])]
+    raw_sections = result.get("sections", [])
+    sections = []
+    for s in raw_sections:
+        if "target_difficulty" in s:
+            diff = str(s["target_difficulty"]).lower()
+            if diff not in ("easy", "medium", "hard"):
+                if "hard" in diff:
+                    s["target_difficulty"] = "hard"
+                elif "easy" in diff:
+                    s["target_difficulty"] = "easy"
+                else:
+                    s["target_difficulty"] = "medium"
+        sections.append(InterviewSection(**s))
     scoring_criteria = [ScoringCriterion(**c) for c in result.get("scoring_criteria", [])]
 
     # 1. Renormalize weights deterministically if they don't sum to ~1.0

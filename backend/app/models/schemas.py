@@ -312,6 +312,7 @@ class CompanyStyleProfile(BaseModel):
     interviewer_persona: InterviewerPersona
     difficulty_curve: str
     red_flags: list[str]
+    distinctive_mechanism: str
     closing_style: str  # Note: Internal generation cue only; do not expose to users.
     seniority_modifiers: dict[str, SeniorityModifier]
     vocabulary_cues: VocabularyCues
@@ -424,6 +425,7 @@ class InterviewState(BaseModel):
     termination_reason: Optional[TerminationReason] = None
     is_complete: bool = False
     final_scores: Optional['ScoringResult'] = None
+    inferred_seniority: Optional[str] = None
 
 
 class NextQuestionResponse(BaseModel):

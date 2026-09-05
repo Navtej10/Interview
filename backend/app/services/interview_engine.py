@@ -138,6 +138,32 @@ def next_question(state: InterviewState, candidate_answer: str) -> NextQuestionR
     interviewer_turns = [t for t in state.transcript if t.role == "interviewer"]
     current_question = interviewer_turns[-1].content if interviewer_turns else ""
     
+    # Handle empty or silence
+    cleaned_answer = candidate_answer.strip().lower()
+    is_empty_or_silence = not cleaned_answer or cleaned_answer in {"[silence]", "[noise]", "<silence>", "<noise>", "[inaudible]", "*silence*", "*noise*"}
+    
+    if is_empty_or_silence:
+        reply = f"Sorry, I didn't catch that — it looks like your answer wasn't recorded. Could you repeat that? {current_question}"
+        topic = interviewer_turns[-1].topic if interviewer_turns else "General"
+        
+        if state.transcript:
+            state.transcript.append(TranscriptTurn(role="candidate", content=candidate_answer))
+            
+        state.transcript.append(TranscriptTurn(role="interviewer", content=reply, topic=topic))
+        
+        return NextQuestionResponse(
+            question=reply,
+            topic=topic,
+            section=section.name,
+            difficulty=state.current_difficulty,
+            rationale="Candidate answer was empty or silent; prompting to repeat.",
+            strategy="repeat",
+            evaluation=_fallback_evaluation(),
+            relationship_to_answer="None (silence)",
+            difficulty_adjustment="stable",
+            phase=phase.value
+        )
+
     short_term_text, long_term_text = build_context(state)
     transcript_text = f"{long_term_text}\n\n--- RECENT TURNS (VERBATIM) ---\n{short_term_text}" if long_term_text else short_term_text
 
@@ -166,6 +192,8 @@ def next_question(state: InterviewState, candidate_answer: str) -> NextQuestionR
             f"Follow-up style: {persona.follow_up_style}\n"
             f"Pacing: {persona.pacing}\n"
             f"Difficulty Curve: {state.company_profile.difficulty_curve}\n"
+            f"Distinctive Mechanism: {state.company_profile.distinctive_mechanism}\n"
+            f"Closing Style (if in closing phase): {state.company_profile.closing_style}\n"
             f"Red Flags to penalize in evaluation: {', '.join(state.company_profile.red_flags)}\n"
             f"Vocabulary/Phrasing Examples (use similar styles, not verbatim): {', '.join(vocab.phrases)}\n"
             f"CRITICAL CONSTRAINT - YOU MUST AVOID: {', '.join(vocab.avoid)}\n"
