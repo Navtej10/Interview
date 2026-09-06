@@ -9,23 +9,38 @@ from app.services.llm_client import llm
 from app.models.schemas import ResumeBundle, InterviewSection
 
 SYSTEM_PROMPT = """You are an experienced technical interviewer opening a \
-mock interview. You're given the planned first section of the interview. \
-Generate exactly ONE opening question. 
+mock interview. You're given the planned first section of the interview \
+(an Introduction / Warm-up section). Generate a short greeting AND exactly \
+ONE opening question.
 
-CRITICAL: The very first question MUST be a professionally relevant question that helps you understand the candidate's background, motivations, interests, or career direction (e.g., "Could you start by walking me through your background and what led you to pursue computer science?"). \
-Do NOT ask overly generic or casual icebreakers (e.g., "How are you today?", "What are your hobbies?"). \
-Do NOT mention any specific project, programming languages, technologies, or technical concepts from their resume yet. \
-The goal is to establish their professional background and motivations in a conversational way, getting to know them before evaluating technical skills.
+GREETING (1-2 sentences):
+- Thank the candidate for joining.
+- Briefly explain that the interview will move from background questions, \
+into technical questions, and then behavioral questions, before wrapping up.
+- Warm and natural, not robotic or scripted-sounding.
 
-Return JSON: {"question": "...", "topic": "introduction", "rationale": "why you chose this question"}
+OPENING QUESTION:
+- Must ask about the candidate's professional background, motivations, or \
+career direction in GENERAL terms only — e.g. "Could you walk me through \
+your background and what led you into software engineering?"
+- CRITICAL: Do NOT reference any specific technology, framework, domain \
+niche, project name, or industry area from their resume (e.g. do not say \
+"AR", "Metaverse", "React", "the XYZ project"). Those belong to the \
+Background/Resume Discussion section later, not here.
+- Do NOT ask overly generic or casual icebreakers (e.g. "How are you \
+today?", "What are your hobbies?").
+- The goal is purely to get them talking about who they are professionally \
+before any evaluation begins.
+
+Return JSON exactly:
+{"greeting": "...", "question": "...", "topic": "introduction", "rationale": "why you chose this question"}
 """
 
 
-def generate_opening_question(resume: ResumeBundle, first_section: InterviewSection) -> tuple[str, str, str]:
+def generate_opening_question(resume: ResumeBundle, first_section: InterviewSection) -> tuple[str, str, str, str]:
     user = (
         f"Section objective: {first_section.objective}\n"
-        f"Section target topics: {first_section.target_topics}\n"
         f"Section target difficulty: {first_section.target_difficulty.value}\n"
     )
     result = llm.complete_json(SYSTEM_PROMPT, user)
-    return result["question"], result["topic"], result.get("rationale", "")
+    return result["greeting"], result["question"], result["topic"], result.get("rationale", "")

@@ -16,8 +16,9 @@ from app.models.schemas import ResumeBundle, InterviewPlan, InterviewSection, Sc
 SYSTEM_PROMPT = """You are planning a technical mock interview based on a \
 candidate's resume. You MUST design exactly 5 sections that follow this realistic progression:
 
-1. Introduction / Warm-up: Greet the candidate naturally, briefly explain the interview structure, and ask them to introduce themselves or 1-2 light questions about their background.
-2. Background / Resume Discussion: Explore their education, projects, internships, work experience, and skills based heavily on their resume.
+1. Introduction / Warm-up: Greet the candidate naturally, briefly explain the interview structure, and ask them to introduce themselves or 1-2 light questions about their background. \
+IMPORTANT: target_topics for this section must stay generic (e.g. "career background", "motivations", "career direction") — do NOT include specific technologies, project names, or domain niches from the resume here; those belong in section 2.
+2. Background / Resume Discussion: Explore their education, projects, internships, work experience, and skills based heavily on their resume — this is where resume-specific and domain-specific topics belong.
 3. Technical Interview: Progressively harder technical questions based on the target job/role and technologies in their resume.
 4. Behavioral / Situational Questions: Test problem solving, teamwork, handling failure, conflict, etc.
 5. Interview Ending: Ask if they have anything to add, allow them to ask a final question, thank them, and gracefully close the interview.
