@@ -28,6 +28,10 @@ DEFAULT_TRANSCRIBE_KWARGS = dict(
     beam_size=5,
     language="en",
     vad_filter=True,
+    # Note: This 500ms min_silence_duration is whisper's internal VAD, acting as a
+    # secondary cleanup pass to filter out silence within the already-chunked audio.
+    # It is NOT the turn-boundary signal (the client VAD event triggering END_OF_TURN
+    # is the actual boundary signal).
     vad_parameters=dict(min_silence_duration_ms=500),
     condition_on_previous_text=False,
     no_speech_threshold=0.6,
@@ -42,18 +46,32 @@ def transcribe_speech(audio_path: str, initial_prompt: str | None = None) -> str
     )
     return " ".join([segment.text for segment in segments]).strip()
 
+import re
+
 async def synthesize_speech_stream(text: str) -> AsyncIterator[bytes]:
     """
     Synthesizes speech and streams the binary audio chunks.
+    Splits the text into shorter sentence-level segments to improve interrupt
+    latency by providing more frequent boundaries to break at.
     """
-    communicate = edge_tts.Communicate(text, voice="en-US-GuyNeural")
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio":
-            yield chunk["data"]
+    # Split on sentence boundaries (punctuation followed by whitespace or end of string)
+    segments = re.split(r'(?<=[.!?])\s+', text.strip())
+    
+    for segment in segments:
+        if not segment:
+            continue
+        communicate = edge_tts.Communicate(segment, voice="en-US-GuyNeural")
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                yield chunk["data"]
 
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Minimum bytes for a valid turn to avoid false VAD triggers (breath/pops)
+# 16kHz 16-bit mono WAV is ~32 bytes per ms. 250ms = 8000 bytes.
+MIN_TURN_AUDIO_BYTES = 8000
 
 async def transcribe_speech_stream(
     audio_chunks: AsyncIterator[bytes],
@@ -65,6 +83,11 @@ async def transcribe_speech_stream(
     """
     async for chunk in audio_chunks:
         if not chunk:
+            continue
+            
+        # Ignore extremely short audio chunks that are likely false VAD triggers
+        if len(chunk) < MIN_TURN_AUDIO_BYTES:
+            logger.info(f"Ignoring turn audio of {len(chunk)} bytes (under ~250ms minimum).")
             continue
             
         # Safely create a temporary file for the received audio chunk
@@ -108,3 +131,4 @@ async def transcribe_speech_stream(
                     os.unlink(tmp_path)
             except Exception as e:
                 logger.error(f"Failed to delete temporary file {tmp_path}: {e}", exc_info=True)
+

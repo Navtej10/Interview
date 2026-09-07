@@ -95,6 +95,33 @@ async def voice_turn(websocket: WebSocket, session_id: str):
 
     logger.info(f"WebSocket connection established for session {session_id}")
 
+    # NEW: Turn-taking state
+    state = {"current": "listening", "interrupted": False}
+
+    async def send_status(text: str):
+        try:
+            # intercept state changes requested by orchestrator
+            try:
+                payload = json.loads(text)
+                if payload.get("type") == "state":
+                    state["current"] = payload["value"]
+            except Exception:
+                pass
+            await websocket.send_text(text)
+        except (WebSocketDisconnect, RuntimeError) as e:
+            if isinstance(e, RuntimeError) and 'Cannot call "send"' not in str(e):
+                logger.error(f"Error sending status (session {session_id}): {e}", exc_info=True)
+                return
+            logger.info(f"WebSocket disconnected while sending status (session {session_id})")
+        except Exception as e:
+            logger.error(f"Error sending status (session {session_id}): {e}", exc_info=True)
+
+    async def set_state(new_state: str):
+        if state["current"] == new_state:
+            return
+        state["current"] = new_state
+        await send_status(json.dumps({"type": "state", "value": new_state}))
+
     async def audio_generator():
         accumulated_audio = bytearray()
         try:
@@ -104,20 +131,45 @@ async def voice_turn(websocket: WebSocket, session_id: str):
                 
                 if message.get("type") == "websocket.receive":
                     if "bytes" in message and message["bytes"] is not None:
-                        accumulated_audio.extend(message["bytes"])
+                        if state["current"] == "user_speaking":
+                            accumulated_audio.extend(message["bytes"])
+                        else:
+                            logger.debug(f"Ignored audio bytes in state {state['current']}")
                     
                     elif "text" in message and message["text"] is not None:
                         try:
                             payload = json.loads(message["text"])
-                            if payload.get("type") == "END_OF_TURN":
-                                if accumulated_audio:
-                                    logger.info(f"END_OF_TURN received. Processing {len(accumulated_audio)} bytes.")
-                                    # Yield the fully accumulated turn audio
-                                    yield bytes(accumulated_audio)
-                                    # Reset for the next turn to keep the socket alive
-                                    accumulated_audio = bytearray()
+                            msg_type = payload.get("type")
+                            
+                            if msg_type == "SPEECH_START":
+                                if state["current"] in ("listening", "ai_speaking"):
+                                    await set_state("user_speaking")
                                 else:
-                                    logger.debug("Received END_OF_TURN but no audio was accumulated.")
+                                    logger.debug(f"Ignored SPEECH_START in state {state['current']}")
+                                    
+                            elif msg_type == "interrupt":
+                                if state["current"] == "ai_speaking":
+                                    logger.info(f"Candidate interrupted AI in session {session_id}")
+                                    state["interrupted"] = True
+                                    await set_state("user_speaking")
+                                else:
+                                    logger.debug(f"Ignored interrupt in state {state['current']}")
+                                    
+                            elif msg_type == "END_OF_TURN":
+                                if state["current"] == "user_speaking":
+                                    await set_state("processing")
+                                    if accumulated_audio:
+                                        logger.info(f"END_OF_TURN received. Processing {len(accumulated_audio)} bytes.")
+                                        state["interrupted"] = False # Reset for the new turn
+                                        # Yield the fully accumulated turn audio
+                                        yield bytes(accumulated_audio)
+                                        # Reset for the next turn to keep the socket alive
+                                        accumulated_audio = bytearray()
+                                    else:
+                                        logger.debug("Received END_OF_TURN but no audio was accumulated.")
+                                else:
+                                    logger.debug(f"Ignored END_OF_TURN in state {state['current']}")
+                                    
                         except json.JSONDecodeError:
                             logger.warning(f"Invalid JSON control message received: {message['text']}")
                             
@@ -141,16 +193,6 @@ async def voice_turn(websocket: WebSocket, session_id: str):
             logger.error(f"Error sending TTS chunk (session {session_id}): {e}", exc_info=True)
             raise
             
-    async def send_status(text: str):
-        try:
-            await websocket.send_text(text)
-        except (WebSocketDisconnect, RuntimeError) as e:
-            if isinstance(e, RuntimeError) and 'Cannot call "send"' not in str(e):
-                logger.error(f"Error sending status (session {session_id}): {e}", exc_info=True)
-                return
-            logger.info(f"WebSocket disconnected while sending status (session {session_id})")
-        except Exception as e:
-            logger.error(f"Error sending status (session {session_id}): {e}", exc_info=True)
 
     try:
         # Pass the STT generator and TTS callback directly to the orchestrator.
@@ -159,7 +201,8 @@ async def voice_turn(websocket: WebSocket, session_id: str):
             session_id, 
             audio_generator(), 
             send_tts,
-            send_status
+            send_status,
+            is_interrupted=lambda: state.get("interrupted", False)
         )
     except asyncio.CancelledError:
         logger.info(f"Voice stream cancelled for session {session_id}")

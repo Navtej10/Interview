@@ -189,7 +189,8 @@ async def process_voice_stream(
     session_id: str, 
     audio_generator: AsyncIterator[bytes], 
     send_tts: Callable[[bytes], asyncio.Task], 
-    send_status: Callable[[str], asyncio.Task]
+    send_status: Callable[[str], asyncio.Task],
+    is_interrupted: Callable[[], bool] = None
 ):
     """
     Coordinates the voice interview pipeline as a series of explicit turns.
@@ -227,9 +228,17 @@ async def process_voice_stream(
             os.close(audio_temp_fd)
             with open(audio_temp, "wb") as f:
                 async for chunk in audio_stream:
+                    # Allow interrupt during TTS generation if needed, though this is fast
+                    if is_interrupted and is_interrupted():
+                        logger.info("Avatar generation interrupted by candidate.")
+                        return
                     f.write(chunk)
             print("DEBUG: Rendering avatar video", flush=True)
                     
+            if is_interrupted and is_interrupted():
+                logger.info("Avatar generation interrupted by candidate before rendering.")
+                return
+
             # 2. Render Avatar Video
             video_temp_fd, video_temp = tempfile.mkstemp(suffix=".mp4")
             os.close(video_temp_fd)
@@ -237,15 +246,27 @@ async def process_voice_stream(
             await avatar_service.render_avatar(audio_temp, cues, video_temp)
             print("DEBUG: Avatar rendered, streaming back video chunks", flush=True)
             
+            if is_interrupted and is_interrupted():
+                logger.info("Avatar playback interrupted by candidate before streaming.")
+                return
+
             # 3. Stream back the completed video in chunks
+            await send_status(json.dumps({"type": "state", "value": "ai_speaking"}))
             with open(video_temp, "rb") as f:
                 while True:
+                    if is_interrupted and is_interrupted():
+                        logger.info("Avatar playback interrupted by candidate mid-stream.")
+                        break
                     chunk = f.read(8192)
                     if not chunk:
                         break
                     await send_tts(chunk)
-                    
-            logger.info("Avatar response sent successfully.")
+            
+            # Only reset state to listening if we weren't interrupted. If we were,
+            # the router state is already user_speaking.
+            if not (is_interrupted and is_interrupted()):
+                await send_status(json.dumps({"type": "state", "value": "listening"}))
+                logger.info("Avatar response sent successfully.")
         except asyncio.CancelledError:
             logger.info("Avatar playback was interrupted by the client.")
             raise

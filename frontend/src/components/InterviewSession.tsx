@@ -30,12 +30,18 @@ export function InterviewSession({
   // Voice mode state
   const [mode, setMode] = useState<'text' | 'voice' | null>(null)
   const [uiState, setUiState] = useState<UIState>('idle')
+  const uiStateRef = useRef<UIState>('idle')
   
+  useEffect(() => {
+    uiStateRef.current = uiState
+  }, [uiState])
+
   // Refs for voice mode
   const wsRef = useRef<WebSocket | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const vadRef = useRef<vad.MicVAD | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
+  const lastInterruptTimeRef = useRef<number>(0)
   
   // Video accumulation
   const videoChunksRef = useRef<Uint8Array[]>([])
@@ -103,10 +109,29 @@ export function InterviewSession({
     try {
       const myvad = await vad.MicVAD.new({
         onSpeechStart: () => {
-          if (videoRef.current) {
-             videoRef.current.pause()
+          const now = Date.now()
+          if (uiStateRef.current === 'ai_speaking') {
+             // Guard against rapid-fire interrupts (1-second cooldown)
+             if (now - lastInterruptTimeRef.current < 1000) return;
+             lastInterruptTimeRef.current = now;
+             
+             if (videoRef.current) {
+                videoRef.current.pause()
+             }
+             if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: 'interrupt' }))
+             }
+             setUiState('listening') // Immediately transition
+          } else {
+             if (videoRef.current) {
+                videoRef.current.pause()
+             }
+             if (wsRef.current?.readyState === WebSocket.OPEN) {
+               wsRef.current.send(JSON.stringify({ type: 'SPEECH_START' }))
+             }
+             // The backend will now tell us when state changes, but we can optimistically set it
+             setUiState('listening')
           }
-          setUiState('listening')
         },
         onSpeechEnd: (audio) => {
           if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -152,6 +177,8 @@ export function InterviewSession({
                 { role: 'candidate', content: payload.candidate }
               ])
               pendingInterviewerMessageRef.current = payload.interviewer
+            } else if (payload.type === 'state') {
+              setUiState(payload.value)
             }
           } catch (e) {
             console.log('WS Message:', event.data)
