@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
 import { startInterview, submitTurn, endInterview } from '../api/client'
 import type { ResumeBundle, InterviewPlan } from '../types'
+import * as vad from '@ricky0123/vad-web'
+import { encodeWAV } from '../utils/wav'
 
 interface Message {
   role: 'interviewer' | 'candidate'
   content: string
 }
 
-type UIState = 'idle' | 'listening' | 'thinking' | 'speaking'
+type UIState = 'listening' | 'processing' | 'ai_speaking' | 'idle'
 
 export function InterviewSession({
   resume,
@@ -31,8 +33,9 @@ export function InterviewSession({
   
   // Refs for voice mode
   const wsRef = useRef<WebSocket | null>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const vadRef = useRef<vad.MicVAD | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
   
   // Video accumulation
   const videoChunksRef = useRef<Uint8Array[]>([])
@@ -51,9 +54,13 @@ export function InterviewSession({
   }, [])
 
   function cleanupMedia() {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop()
-      mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop())
+    if (vadRef.current) {
+      vadRef.current.destroy()
+      vadRef.current = null
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(t => t.stop())
+      mediaStreamRef.current = null
     }
     if (currentBlobUrlRef.current) {
       URL.revokeObjectURL(currentBlobUrlRef.current)
@@ -82,13 +89,44 @@ export function InterviewSession({
       setMessages([{ role: 'interviewer', content: res.question }])
       
       if (selectedMode === 'voice') {
-        setUiState('thinking') // Waiting for the first avatar video to arrive
+        setUiState('processing') // Waiting for the first avatar video to arrive
+        await startContinuousRecording()
       }
     } catch (e) {
       console.error(e)
       alert("Failed to start interview.")
     }
     setLoading(false)
+  }
+
+  async function startContinuousRecording() {
+    try {
+      const myvad = await vad.MicVAD.new({
+        onSpeechStart: () => {
+          if (videoRef.current) {
+             videoRef.current.pause()
+          }
+          setUiState('listening')
+        },
+        onSpeechEnd: (audio) => {
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            const wavBlob = encodeWAV(audio)
+            wsRef.current.send(wavBlob)
+            wsRef.current.send(JSON.stringify({ type: 'END_OF_TURN' }))
+          }
+          setUiState('processing')
+        },
+        onVADMisfire: () => {
+          setUiState('listening')
+        }
+      })
+      myvad.start()
+      vadRef.current = myvad
+      setUiState('listening') // Once VAD is started, we are listening
+    } catch (e) {
+      console.error('Microphone access denied or error:', e)
+      alert("Microphone access is required for Voice Mode.")
+    }
   }
 
   function setupVoiceMode(id: string) {
@@ -100,12 +138,11 @@ export function InterviewSession({
 
     ws.onmessage = (event) => {
       if (typeof event.data === 'string') {
-        // Backend text messages (errors or status)
         if (event.data === 'Interview complete.') {
           finish()
         } else if (event.data.startsWith('Error') || event.data.startsWith('Avatar error')) {
           console.error('Backend error:', event.data)
-          setUiState('idle')
+          setUiState('listening')
         } else {
           try {
             const payload = JSON.parse(event.data)
@@ -121,9 +158,6 @@ export function InterviewSession({
           }
         }
       } else {
-        // We received a binary chunk of the video.
-        // Because the backend reads the file and streams it rapidly in a tight loop,
-        // we accumulate the chunks and use a short timeout to detect the end.
         const chunk = new Uint8Array(event.data)
         videoChunksRef.current.push(chunk)
         
@@ -133,7 +167,7 @@ export function InterviewSession({
         
         videoReceiveTimeoutRef.current = window.setTimeout(() => {
           finalizeVideo()
-        }, 200) // 200ms without chunks means the file is fully transferred
+        }, 200)
       }
     }
     
@@ -150,14 +184,12 @@ export function InterviewSession({
   function finalizeVideo() {
     if (videoChunksRef.current.length === 0) return
     
-    // Revoke old URL if exists to avoid memory leaks
     if (currentBlobUrlRef.current) {
       URL.revokeObjectURL(currentBlobUrlRef.current)
     }
     
-    // Treat every interviewer response as one complete video
     const blob = new Blob(videoChunksRef.current as BlobPart[], { type: 'video/mp4' })
-    videoChunksRef.current = [] // reset queue
+    videoChunksRef.current = [] 
     
     const url = URL.createObjectURL(blob)
     currentBlobUrlRef.current = url
@@ -165,9 +197,8 @@ export function InterviewSession({
     if (videoRef.current) {
        videoRef.current.src = url
        videoRef.current.play().catch(e => console.error("Playback failed:", e))
-       setUiState('speaking')
+       setUiState('ai_speaking')
        
-       // Append the delayed interviewer message exactly when the video starts
        const textToAppend = pendingInterviewerMessageRef.current;
        if (textToAppend) {
          setMessages(m => [
@@ -177,62 +208,10 @@ export function InterviewSession({
          pendingInterviewerMessageRef.current = null
        }
        
-       // When video finishes playing, go back to idle so the user can speak
        videoRef.current.onended = () => {
-         setUiState('idle')
+         setUiState('listening')
        }
     }
-  }
-
-  async function startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        }
-      })
-      const mr = new MediaRecorder(stream)
-      mediaRecorderRef.current = mr
-      
-      mr.ondataavailable = (e) => {
-        if (e.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
-          wsRef.current?.send(e.data)
-        }
-      }
-      
-      // Stop any playing avatar video if we interrupt
-      if (videoRef.current) {
-         videoRef.current.pause()
-      }
-      
-      // Capture chunks every 250ms for the backend to accumulate
-      mr.start(250)
-      setUiState('listening')
-    } catch (e) {
-      console.error('Microphone access denied or error:', e)
-      alert("Microphone access is required for Voice Mode.")
-    }
-  }
-
-  function stopRecording() {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.onstop = () => {
-        // Send END_OF_TURN control message so the backend stops waiting for audio
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({ type: 'END_OF_TURN' }))
-        }
-      }
-      mediaRecorderRef.current.stop()
-      mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop())
-    } else {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: 'END_OF_TURN' }))
-      }
-    }
-    
-    setUiState('thinking') // Waiting for backend to transcribe and generate next avatar video
   }
 
   async function sendAnswer() {
@@ -282,7 +261,6 @@ export function InterviewSession({
         </p>
       )}
       <div style={{ display: 'flex', gap: '2rem' }}>
-        {/* Left Column: Chat History */}
         <div style={{ flex: 1 }}>
           <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #ccc', padding: '1rem', marginBottom: '1rem' }}>
             {messages.map((m, i) => (
@@ -313,24 +291,11 @@ export function InterviewSession({
             </>
           ) : (
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <button 
-                onClick={uiState === 'listening' ? stopRecording : startRecording}
-                disabled={uiState === 'thinking'}
-                style={{ 
-                  background: uiState === 'listening' ? '#f44336' : (uiState === 'thinking' ? '#9e9e9e' : '#4CAF50'),
-                  color: 'white',
-                  padding: '1rem',
-                  borderRadius: '50%',
-                  cursor: uiState === 'thinking' ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {uiState === 'listening' ? '⏹ Stop' : '🎤 Speak'}
-              </button>
               <span>
                 {uiState === 'listening' && 'Listening...'}
-                {uiState === 'thinking' && 'Thinking...'}
-                {uiState === 'speaking' && 'Avatar speaking...'}
-                {uiState === 'idle' && 'Click to talk'}
+                {uiState === 'processing' && 'Processing...'}
+                {uiState === 'ai_speaking' && 'Interviewer speaking...'}
+                {uiState === 'idle' && 'Idle...'}
               </span>
               <button onClick={finish} style={{ marginLeft: 'auto' }}>
                 End interview
@@ -339,7 +304,6 @@ export function InterviewSession({
           )}
         </div>
 
-        {/* Right Column: Avatar Video (Only visible in Voice mode) */}
         {mode === 'voice' && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start' }}>
             <div style={{ width: '100%', aspectRatio: '16/9', background: '#000', borderRadius: '8px', overflow: 'hidden' }}>
@@ -359,3 +323,4 @@ export function InterviewSession({
     </div>
   )
 }
+

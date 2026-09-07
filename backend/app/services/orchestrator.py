@@ -73,7 +73,8 @@ def start_interview(resume: ResumeBundle, company_id: str = None) -> tuple[str, 
 
     plan = generate_plan(resume, company_profile, seniority)
     first_section, _ = section_for_question_index(plan, 0)
-    question, topic, rationale = generate_opening_question(resume, first_section)
+    greeting, question, topic, rationale = generate_opening_question(resume, first_section)
+    combined_question = f"{greeting} {question}"
 
     modifier = company_profile.seniority_modifiers.get(seniority, company_profile.seniority_modifiers.get("mid"))
     diff_map = {
@@ -88,7 +89,7 @@ def start_interview(resume: ResumeBundle, company_id: str = None) -> tuple[str, 
         resume=resume,
         plan=plan,
         company_profile=company_profile,
-        transcript=[TranscriptTurn(role="interviewer", content=question, topic=topic)],
+        transcript=[TranscriptTurn(role="interviewer", content=combined_question, topic=topic)],
         covered_topics=[topic],
         current_difficulty=start_diff,
         # we can just store seniority on state by attaching it to the company profile or tracking it, 
@@ -100,7 +101,7 @@ def start_interview(resume: ResumeBundle, company_id: str = None) -> tuple[str, 
     session_store.save(state)
     logger.info(f"Session {session_id} started successfully")
 
-    return session_id, question, topic, first_section.name, plan, rationale
+    return session_id, combined_question, topic, first_section.name, plan, rationale
 
 
 def submit_answer(session_id: str, candidate_answer: str) -> Union[NextQuestionResponse, dict]:
