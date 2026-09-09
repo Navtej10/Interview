@@ -113,7 +113,29 @@ def test_next_question_duplicate_topic_invalid_strategy(mock_complete_json, mock
     # Test point 3: In the new architecture, we removed the strict strategy rules around topic keeping 
     # to avoid a second latency-inducing LLM call. Instead, we let the LLM handle it, but we still force a pivot
     # if it repeats >2 times. This test is simplified.
-    pass
+    
+    # 1. Setup transcript so the last interviewer question was on topic "t1"
+    mock_state.transcript.append(TranscriptTurn(role="interviewer", content="Q1", topic="t1"))
+    
+    # 2. LLM hallucinates an invalid strategy, but wants to stay on "t1" (duplicate topic, meaning 2nd time)
+    mock_complete_json.return_value = {
+        "evaluation": {"overall_quality": "adequate"},
+        "question": "Q2?",
+        "topic": "t1",
+        "strategy": "made_up_strategy",
+        "rationale": ""
+    }
+    
+    response = next_question(mock_state, "A1")
+    
+    # 3. Assert the new behavior: 
+    # - Strategy falls back to "pivot" because "made_up_strategy" is invalid.
+    # - Topic REMAINS "t1" because it has only repeated once (2 consecutive), so the strict
+    #   "pivots must always change topic" rule is no longer enforced to save a second LLM call.
+    assert response.strategy == "pivot"
+    assert response.topic == "t1"
+    assert response.question == "Q2?"
+    assert mock_complete_json.call_count == 1
 
 @patch("app.services.interview_engine.llm.complete_json")
 def test_next_question_three_consecutive_topic(mock_complete_json, mock_state):

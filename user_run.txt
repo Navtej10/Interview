@@ -6,5 +6,3 @@ Backend
 cd backend 
 .\venv\Scripts\activate
 uvicorn app.main:app --reload --port 8000 
-
-//Coded for Continuous conversation. Should test it.

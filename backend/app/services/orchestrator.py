@@ -8,6 +8,7 @@ telemetry, and eventually TTS/Avatar service hooks.
 import uuid
 import logging
 import asyncio
+import json
 from typing import Union, Tuple, AsyncIterator, Callable
 
 from app.models.schemas import (
@@ -49,7 +50,7 @@ def analyze_resume(file_bytes: bytes, filename: str) -> ResumeBundle:
         raise
 
 
-def start_interview(resume: ResumeBundle, company_id: str = None) -> tuple[str, str, str, str, InterviewPlan, str]:
+def start_interview(resume: ResumeBundle, company_id: Union[str, None] = None) -> tuple[str, str, str, str, InterviewPlan, str]:
     """
     Coordinates the initialization of a new interview session.
     Returns: (session_id, question, topic, section_name, plan, rationale)
@@ -58,6 +59,8 @@ def start_interview(resume: ResumeBundle, company_id: str = None) -> tuple[str, 
     session_id = str(uuid.uuid4())
 
     company_profile = get_company_profile(company_id) if company_id else get_company_profile("default")
+    if company_profile is None:
+        raise ValueError("Company profile not found")
 
     # Map seniority
     exp_level = resume.analysis.candidate_profile.experience_level.lower()
@@ -139,7 +142,7 @@ def render_interviewer_turn(text: str):
     try:
         from app.services.speech_pipeline import synthesize_speech
         from app.services.avatar_service import avatar_service, AvatarError
-        from app.services.behavior_engine import derive_behavior_cues, Difficulty
+        from app.services.behavior_engine import derive_behavior_cues
     except ImportError:
         AvatarError = type("AvatarError", (Exception,), {})
         synthesize_speech = None
@@ -147,14 +150,14 @@ def render_interviewer_turn(text: str):
         derive_behavior_cues = None
 
     try:
-        if synthesize_speech is None:
-            raise NotImplementedError("speech_pipeline not installed")
+        if synthesize_speech is None or derive_behavior_cues is None or avatar_service is None:
+            raise NotImplementedError("speech_pipeline or avatar_service not installed")
         
         cues = derive_behavior_cues(text, "neutral", Difficulty.medium)
         
         async def run_pipeline():
             audio_path = await synthesize_speech(text, "output.wav")
-            await avatar_service.render_avatar(audio_path, cues, "avatar_output.mp4")
+            await avatar_service.render_avatar(audio_path, cues, "avatar_output.mp4")  # type: ignore
 
         # Since this is a synchronous path, we use asyncio.run to await the generation.
         try:
@@ -190,7 +193,7 @@ async def process_voice_stream(
     audio_generator: AsyncIterator[bytes], 
     send_tts: Callable[[bytes], asyncio.Task], 
     send_status: Callable[[str], asyncio.Task],
-    is_interrupted: Callable[[], bool] = None
+    is_interrupted: Union[Callable[[], bool], None] = None
 ):
     """
     Coordinates the voice interview pipeline as a series of explicit turns.
@@ -318,13 +321,13 @@ async def process_voice_stream(
                 break
 
             # 4. Check for Interview Completion
-            if isinstance(result, dict) and result.get("status") == "complete":
-                logger.info(f"Interview {session_id} is complete.")
-                await send_status("Interview complete.")
+            if isinstance(result, dict):
+                if result.get("status") == "complete":
+                    logger.info(f"Interview {session_id} is complete.")
+                    await send_status("Interview complete.")
                 break
                 
             # Send transcript update to frontend
-            import json
             await send_status(json.dumps({
                 "type": "transcript",
                 "candidate": candidate_text,
@@ -335,7 +338,7 @@ async def process_voice_stream(
             try:
                 await send_avatar_wrapper(
                     result.question, 
-                    result.model_dump() if hasattr(result, 'model_dump') else result
+                    result.model_dump()
                 )
             except Exception as e:
                 logger.error(f"Avatar rendering failed for turn. Stopping voice loop: {e}", exc_info=True)

@@ -20,6 +20,8 @@ async def synthesize_speech(text: str, output_path: str) -> str:
     """
     Synthesizes speech using edge-tts and saves it to a file.
     """
+    if edge_tts is None:
+        raise RuntimeError("edge_tts is not initialized.")
     communicate = edge_tts.Communicate(text, voice="en-US-GuyNeural")
     await communicate.save(output_path)
     return output_path
@@ -41,6 +43,8 @@ def transcribe_speech(audio_path: str, initial_prompt: str | None = None) -> str
     """
     Transcribes a full audio file using faster-whisper.
     """
+    if model is None:
+        raise RuntimeError("Whisper model is not initialized.")
     segments, _ = model.transcribe(
         audio_path, initial_prompt=initial_prompt, **DEFAULT_TRANSCRIBE_KWARGS
     )
@@ -54,6 +58,9 @@ async def synthesize_speech_stream(text: str) -> AsyncIterator[bytes]:
     Splits the text into shorter sentence-level segments to improve interrupt
     latency by providing more frequent boundaries to break at.
     """
+    if edge_tts is None:
+        raise RuntimeError("edge_tts is not initialized.")
+
     # Split on sentence boundaries (punctuation followed by whitespace or end of string)
     segments = re.split(r'(?<=[.!?])\s+', text.strip())
     

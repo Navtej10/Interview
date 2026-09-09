@@ -95,8 +95,22 @@ export function InterviewSession({
       setMessages([{ role: 'interviewer', content: res.question }])
       
       if (selectedMode === 'voice') {
+        let stream: MediaStream;
+        try {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("getUserMedia is not supported in this browser.")
+          }
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+          mediaStreamRef.current = stream
+        } catch (e) {
+          console.error('Microphone access denied or error:', e)
+          alert("Microphone access was denied or is unavailable. Please allow microphone permissions to use Voice Mode.")
+          setLoading(false)
+          return
+        }
+
         setUiState('processing') // Waiting for the first avatar video to arrive
-        await startContinuousRecording()
+        await startContinuousRecording(stream)
       }
     } catch (e) {
       console.error(e)
@@ -105,9 +119,12 @@ export function InterviewSession({
     setLoading(false)
   }
 
-  async function startContinuousRecording() {
+  async function startContinuousRecording(stream: MediaStream) {
     try {
       const myvad = await vad.MicVAD.new({
+        stream,
+        baseAssetPath: '/',
+        onnxWASMBasePath: '/',
         onSpeechStart: () => {
           const now = Date.now()
           if (uiStateRef.current === 'ai_speaking') {
@@ -134,12 +151,17 @@ export function InterviewSession({
           }
         },
         onSpeechEnd: (audio) => {
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            const wavBlob = encodeWAV(audio)
-            wsRef.current.send(wavBlob)
-            wsRef.current.send(JSON.stringify({ type: 'END_OF_TURN' }))
+          try {
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+              const wavBlob = encodeWAV(audio)
+              wsRef.current.send(wavBlob)
+              wsRef.current.send(JSON.stringify({ type: 'END_OF_TURN' }))
+            }
+          } catch (error) {
+            console.error('Error in onSpeechEnd processing:', error)
+          } finally {
+            setUiState('processing')
           }
-          setUiState('processing')
         },
         onVADMisfire: () => {
           setUiState('listening')
@@ -149,8 +171,8 @@ export function InterviewSession({
       vadRef.current = myvad
       setUiState('listening') // Once VAD is started, we are listening
     } catch (e) {
-      console.error('Microphone access denied or error:', e)
-      alert("Microphone access is required for Voice Mode.")
+      console.error('Voice mode failed to initialize:', e)
+      alert("Voice mode failed to initialize. Please check your connection or try again.")
     }
   }
 
