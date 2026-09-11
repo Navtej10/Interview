@@ -225,12 +225,100 @@ export interface NextQuestionResponse {
   rationale: string
 }
 
+export interface CriterionScore {
+  criterion_name: string
+  score: number
+  justification: string
+  location: string
+}
+
+export interface OverallPerformance {
+  summary: string
+  completion_status: string
+  strongest_areas: string[]
+  weakest_areas: string[]
+}
+
+export interface TechnicalKnowledge {
+  technical_correctness: string
+  depth_of_understanding: string
+  implementation_details: string
+  fundamentals: string
+  tradeoffs: string
+  debugging_problem_solving: string
+  system_design: string
+}
+
+export interface CommunicationAssessment {
+  clarity: string
+  structure: string
+  conciseness: string
+  directness: string
+  explanation_ability: string
+  concrete_examples: string
+}
+
+export interface ReasoningAbility {
+  problem_breakdown: string
+  explaining_reasoning: string
+  evaluating_alternatives: string
+  reasoning_tradeoffs: string
+  handling_followups: string
+  adaptability: string
+}
+
+export interface ProjectOwnership {
+  what_built: string
+  responsibilities: string
+  technical_decisions: string
+  challenges: string
+  outcomes: string
+}
+
+export interface ResumeCredibility {
+  supported_claims: string[]
+  partially_supported_claims: string[]
+  unverified_claims: string[]
+  inconsistencies: string[]
+}
+
+export interface WeaknessEvidence {
+  description: string
+  evidence: string
+}
+
+export interface InterviewBehavior {
+  patterns: string[]
+}
+
+export interface ConfidenceLevels {
+  high_confidence: string[]
+  medium_confidence: string[]
+  low_confidence: string[]
+  unassessed: string[]
+}
+
+export interface EarlyTerminationContext {
+  termination_reason: string
+  meaningful_answers_collected: number
+  unassessed_dimensions: string[]
+  assessment_reliability: string
+}
+
 export interface FeedbackReport {
-  overall_summary: string
-  strengths: string[]
-  weaknesses: string[]
-  moment_highlights: string[]
-  recommended_next_steps: string[]
+  overall_performance: OverallPerformance
+  technical_knowledge: TechnicalKnowledge
+  communication: CommunicationAssessment
+  reasoning_ability: ReasoningAbility
+  project_ownership: ProjectOwnership
+  resume_credibility: ResumeCredibility
+  technical_weaknesses: WeaknessEvidence[]
+  communication_weaknesses: WeaknessEvidence[]
+  interview_behavior: InterviewBehavior
+  confidence_levels: ConfidenceLevels
+  early_termination_context?: EarlyTerminationContext
+  scores: CriterionScore[]
+  weighted_overall: number
   company_style?: string
   company_disclaimer?: string
 }
