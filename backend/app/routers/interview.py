@@ -133,6 +133,8 @@ async def voice_turn(websocket: WebSocket, session_id: str):
                     if "bytes" in message and message["bytes"] is not None:
                         if state["current"] == "user_speaking":
                             accumulated_audio.extend(message["bytes"])
+                        elif state["current"] == "completed":
+                            pass # explicitly ignore
                         else:
                             logger.debug(f"Ignored audio bytes in state {state['current']}")
                     

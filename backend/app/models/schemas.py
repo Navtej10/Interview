@@ -86,6 +86,30 @@ class ScoreCard(BaseModel):
     score: int
     reason: str
 
+    @field_validator("score", mode="before")
+    @classmethod
+    def parse_score(cls, v):
+        if isinstance(v, (int, float)):
+            return int(v)
+        if isinstance(v, str):
+            import re
+            match = re.search(r'\d+', v)
+            if match:
+                return int(match.group())
+            val = 0
+            w = v.lower()
+            if 'hundred' in w: return 100
+            for k, n in {'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90}.items():
+                if k in w:
+                    val += n
+                    break
+            for k, n in {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19}.items():
+                if k in w:
+                    val += n
+                    break
+            if val > 0: return val
+        return 0
+
 class Scores(BaseModel):
     overall_resume: ScoreCard
     ats_compatibility: ScoreCard
@@ -439,6 +463,7 @@ class NextQuestionResponse(BaseModel):
     relationship_to_answer: str
     difficulty_adjustment: str
     phase: Optional[str] = None
+    isFinalTurn: bool = False
 
 
 # ---------- Module 17: Behavior Engine ----------

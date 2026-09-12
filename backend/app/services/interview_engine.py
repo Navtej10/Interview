@@ -58,6 +58,7 @@ Phase 4 — Closing
 - Signal the interview is wrapping up.
 - Give the candidate a chance to add anything or ask a question.
 - Close warmly and set expectations of next steps.
+- When delivering the final closing statement, you MUST set "isFinalTurn": true to end the session.
 
 Global rules:
 - Never sound like you're reading a form (no "Question 3 of 10").
@@ -93,7 +94,8 @@ Return JSON exactly:
   "rationale": "one sentence",
   "relationship_to_answer": "how this question relates to what they just said",
   "difficulty_adjustment": "increase|decrease|stable",
-  "phase": "opening|bridge|core|closing"
+  "phase": "opening|bridge|core|closing",
+  "isFinalTurn": false
 }}
 """
 
@@ -283,5 +285,6 @@ def next_question(state: InterviewState, candidate_answer: str) -> NextQuestionR
         evaluation=evaluation,
         relationship_to_answer=result.get("relationship_to_answer", ""),
         difficulty_adjustment=result.get("difficulty_adjustment", "stable"),
-        phase=result.get("phase")
+        phase=result.get("phase"),
+        isFinalTurn=result.get("isFinalTurn", False)
     )

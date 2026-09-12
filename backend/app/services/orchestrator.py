@@ -123,6 +123,12 @@ def submit_answer(session_id: str, candidate_answer: str) -> Union[NextQuestionR
 
     try:
         result = next_question(state, candidate_answer)
+        
+        # Hard ceiling enforcement
+        hard_ceiling = state.plan.total_estimated_turns + 2
+        if state.turn_count >= hard_ceiling or getattr(result, 'isFinalTurn', False):
+            state.is_complete = True
+            
         session_store.save(state)
         
         # Telemetry or Avatar hooks can be inserted here.
@@ -188,11 +194,13 @@ def _build_transcription_prompt(state: InterviewState) -> str:
         logger.debug(f"Could not build transcription prompt from resume: {e}")
     return "Interview transcript for a technical job candidate."
 
+from typing import AsyncIterator, Callable, Union, Awaitable
+
 async def process_voice_stream(
     session_id: str, 
     audio_generator: AsyncIterator[bytes], 
-    send_tts: Callable[[bytes], asyncio.Task], 
-    send_status: Callable[[str], asyncio.Task],
+    send_tts: Callable[[bytes], Awaitable[None]], 
+    send_status: Callable[[str], Awaitable[None]],
     is_interrupted: Union[Callable[[], bool], None] = None
 ):
     """
@@ -321,27 +329,35 @@ async def process_voice_stream(
                 break
 
             # 4. Check for Interview Completion
+            is_complete = False
             if isinstance(result, dict):
                 if result.get("status") == "complete":
-                    logger.info(f"Interview {session_id} is complete.")
-                    await send_status("Interview complete.")
-                break
-                
+                    is_complete = True
+            elif getattr(result, 'isFinalTurn', False) or get_session(session_id).is_complete:
+                is_complete = True
+
             # Send transcript update to frontend
             await send_status(json.dumps({
                 "type": "transcript",
                 "candidate": candidate_text,
-                "interviewer": result.question
+                "interviewer": result.question if not isinstance(result, dict) else ""
             }))
             
-            # 5. Render & Send Avatar Response
-            try:
-                await send_avatar_wrapper(
-                    result.question, 
-                    result.model_dump()
-                )
-            except Exception as e:
-                logger.error(f"Avatar rendering failed for turn. Stopping voice loop: {e}", exc_info=True)
+            # 5. Render & Send Avatar Response (even for final turn)
+            if not isinstance(result, dict):
+                try:
+                    await send_avatar_wrapper(
+                        result.question, 
+                        result.model_dump()
+                    )
+                except Exception as e:
+                    logger.error(f"Avatar rendering failed for turn. Stopping voice loop: {e}", exc_info=True)
+                    break
+            
+            if is_complete:
+                logger.info(f"Interview {session_id} is complete.")
+                end_interview(session_id)
+                await send_status(json.dumps({"type": "state", "value": "completed"}))
                 break
 
     except asyncio.CancelledError:

@@ -3,13 +3,15 @@ import { startInterview, submitTurn, endInterview } from '../api/client'
 import type { ResumeBundle, InterviewPlan } from '../types'
 import * as vad from '@ricky0123/vad-web'
 import { encodeWAV } from '../utils/wav'
+import styles from './InterviewSession.module.css'
+import { Home } from 'lucide-react'
 
 interface Message {
   role: 'interviewer' | 'candidate'
   content: string
 }
 
-type UIState = 'listening' | 'processing' | 'ai_speaking' | 'idle'
+type UIState = 'listening' | 'processing' | 'ai_speaking' | 'idle' | 'ended' | 'completed'
 
 export function InterviewSession({
   resume,
@@ -22,13 +24,11 @@ export function InterviewSession({
 }) {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [plan, setPlan] = useState<InterviewPlan | null>(null)
-  const [currentSection, setCurrentSection] = useState<string>('')
   const [messages, setMessages] = useState<Message[]>([])
-  const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showTranscript, setShowTranscript] = useState(false)
 
   // Voice mode state
-  const [mode, setMode] = useState<'text' | 'voice' | null>(null)
   const [uiState, setUiState] = useState<UIState>('idle')
   const uiStateRef = useRef<UIState>('idle')
   
@@ -79,39 +79,35 @@ export function InterviewSession({
 
   // Connect WebSocket after the DOM has updated and the video element exists
   useEffect(() => {
-    if (sessionId && mode === 'voice' && !wsRef.current) {
+    if (sessionId && !wsRef.current && uiState !== 'ended') {
       setupVoiceMode(sessionId)
     }
-  }, [sessionId, mode])
+  }, [sessionId, uiState])
 
-  async function begin(selectedMode: 'text' | 'voice') {
-    setMode(selectedMode)
+  async function begin() {
     setLoading(true)
     try {
       const res = await startInterview(resume, companyId)
       setSessionId(res.session_id)
       setPlan(res.plan)
-      setCurrentSection(res.section)
       setMessages([{ role: 'interviewer', content: res.question }])
       
-      if (selectedMode === 'voice') {
-        let stream: MediaStream;
-        try {
-          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error("getUserMedia is not supported in this browser.")
-          }
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-          mediaStreamRef.current = stream
-        } catch (e) {
-          console.error('Microphone access denied or error:', e)
-          alert("Microphone access was denied or is unavailable. Please allow microphone permissions to use Voice Mode.")
-          setLoading(false)
-          return
+      let stream: MediaStream;
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error("getUserMedia is not supported in this browser.")
         }
-
-        setUiState('processing') // Waiting for the first avatar video to arrive
-        await startContinuousRecording(stream)
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        mediaStreamRef.current = stream
+      } catch (e) {
+        console.error('Microphone access denied or error:', e)
+        alert("Microphone access was denied or is unavailable. Please allow microphone permissions to use Voice Mode.")
+        setLoading(false)
+        return
       }
+
+      setUiState('processing') // Waiting for the first avatar video to arrive
+      await startContinuousRecording(stream)
     } catch (e) {
       console.error(e)
       alert("Failed to start interview.")
@@ -122,6 +118,7 @@ export function InterviewSession({
   async function startContinuousRecording(stream: MediaStream) {
     try {
       const myvad = await vad.MicVAD.new({
+        // @ts-expect-error - 'stream' is used by MicVAD but missing in the type definitions
         stream,
         baseAssetPath: '/',
         onnxWASMBasePath: '/',
@@ -185,9 +182,7 @@ export function InterviewSession({
 
     ws.onmessage = (event) => {
       if (typeof event.data === 'string') {
-        if (event.data === 'Interview complete.') {
-          finish()
-        } else if (event.data.startsWith('Error') || event.data.startsWith('Avatar error')) {
+        if (event.data.startsWith('Error') || event.data.startsWith('Avatar error')) {
           console.error('Backend error:', event.data)
           setUiState('listening')
         } else {
@@ -200,7 +195,11 @@ export function InterviewSession({
               ])
               pendingInterviewerMessageRef.current = payload.interviewer
             } else if (payload.type === 'state') {
-              setUiState(payload.value)
+              if (payload.value === 'completed') {
+                finish()
+              } else {
+                setUiState(payload.value)
+              }
             }
           } catch (e) {
             console.log('WS Message:', event.data)
@@ -222,11 +221,15 @@ export function InterviewSession({
     
     ws.onclose = () => {
       console.log('WS closed')
-      setUiState('idle')
+      if (uiStateRef.current !== 'ended') {
+        setUiState('idle')
+      }
     }
     ws.onerror = (e) => {
       console.error('WS error', e)
-      setUiState('idle')
+      if (uiStateRef.current !== 'ended') {
+        setUiState('idle')
+      }
     }
   }
 
@@ -263,112 +266,130 @@ export function InterviewSession({
     }
   }
 
-  async function sendAnswer() {
-    if (!sessionId || !draft.trim()) return
-    const answer = draft
-    setDraft('')
-    setMessages((m) => [...m, { role: 'candidate', content: answer }])
-    setLoading(true)
-    const next = await submitTurn(sessionId, answer)
-    setCurrentSection(next.section)
-    setMessages((m) => [...m, { role: 'interviewer', content: next.question }])
-    setLoading(false)
-  }
-
   async function finish() {
     if (!sessionId) return
-    await endInterview(sessionId)
+    setUiState('ended')
     cleanupMedia()
-    onComplete(sessionId)
+    await endInterview(sessionId)
   }
+
+  function handleGoHome() {
+    if (uiState === 'ended' && sessionId) {
+      onComplete(sessionId)
+    } else {
+      // If we're midway through an interview, going home without saving could lose progress.
+      // Assuming for this prototype we just navigate away or finish the session.
+      if (sessionId) {
+        finish().then(() => onComplete(sessionId))
+      }
+    }
+  }
+
+  const getStateColor = (state: UIState) => {
+    switch (state) {
+      case 'listening': return 'var(--state-listening)'
+      case 'ai_speaking': return 'var(--state-speaking)'
+      case 'processing': return 'var(--state-thinking)'
+      default: return 'var(--state-idle)'
+    }
+  }
+
+  const getStateLabel = (state: UIState) => {
+    switch (state) {
+      case 'listening': return 'Listening'
+      case 'ai_speaking': return 'Speaking'
+      case 'processing': return 'Thinking'
+      case 'ended': return 'Ended'
+      default: return 'Idle'
+    }
+  }
+
+  const currentCaption = messages.length > 0 ? messages[messages.length - 1].content : ''
 
   if (!sessionId) {
     return (
-      <div>
-        <h2>Ready for your mock interview</h2>
-        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-          <button onClick={() => begin('text')} disabled={loading}>
-            Begin Text Interview
-          </button>
-          <button onClick={() => begin('voice')} disabled={loading} style={{ background: '#4CAF50', color: 'white' }}>
-            Begin Voice/Avatar Interview
-          </button>
-        </div>
+      <div className={styles.container} style={{ justifyContent: 'center', alignItems: 'center' }}>
+        <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', fontWeight: 600 }}>Ready for your mock interview</h2>
+        <button className={styles.buttonPrimary} onClick={begin} disabled={loading}>
+          {loading ? 'Connecting...' : 'Join Interview Session'}
+        </button>
       </div>
     )
   }
 
   return (
-    <div>
-      <h2>Mock interview</h2>
-      {plan && (
-        <p>
-          <em>
-            Section: {currentSection} (~{plan.total_estimated_turns} turns planned across{' '}
-            {plan.sections.length} sections)
-          </em>
-        </p>
-      )}
-      <div style={{ display: 'flex', gap: '2rem' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #ccc', padding: '1rem', marginBottom: '1rem' }}>
-            {messages.map((m, i) => (
-              <p key={i}>
-                <strong>{m.role === 'interviewer' ? 'Interviewer' : 'You'}:</strong> {m.content}
-              </p>
-            ))}
-          </div>
-          
-          {mode === 'text' ? (
-            <>
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="Type your answer…"
-                disabled={loading}
-                rows={4}
-                style={{ width: '100%', marginBottom: '1rem' }}
+    <div className={styles.container}>
+      <header className={styles.topBar}>
+        <div className={styles.wordmark}>MockInterview</div>
+        <button className={styles.iconButton} onClick={handleGoHome} aria-label="Go home">
+          <Home size={20} />
+        </button>
+      </header>
+
+      {uiState === 'ended' ? (
+        <div className={styles.endScreen}>
+          <div className={styles.endMessage}>Interview complete</div>
+          <button className={styles.buttonPrimary} onClick={() => onComplete(sessionId)}>
+            View Results
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className={styles.avatarContainer}>
+            <video 
+              ref={videoRef}
+              className={styles.videoElement}
+              autoPlay 
+              playsInline
+            />
+            <div className={`${styles.overlay} ${styles.nameplate}`}>
+              Alex Chen · Senior engineering manager
+            </div>
+            <div className={`${styles.overlay} ${styles.stateOverlay}`}>
+              <div 
+                className={`${styles.stateDot} ${(uiState === 'listening' || uiState === 'ai_speaking' || uiState === 'processing') ? styles.pulse : ''}`}
+                style={{ '--state-color': getStateColor(uiState) } as React.CSSProperties}
               />
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <button onClick={sendAnswer} disabled={loading || !draft.trim()}>
-                  Submit answer
-                </button>
-                <button onClick={finish} disabled={loading}>
-                  End interview
-                </button>
-              </div>
-            </>
-          ) : (
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <span>
-                {uiState === 'listening' && 'Listening...'}
-                {uiState === 'processing' && 'Processing...'}
-                {uiState === 'ai_speaking' && 'Interviewer speaking...'}
-                {uiState === 'idle' && 'Idle...'}
-              </span>
-              <button onClick={finish} style={{ marginLeft: 'auto' }}>
-                End interview
-              </button>
+              {getStateLabel(uiState)}
+            </div>
+          </div>
+
+          <div className={styles.captionLine}>
+            {uiState === 'processing' ? '…' : currentCaption}
+          </div>
+
+          <div className={styles.controlRow}>
+            <div className={styles.controlState}>
+              <div 
+                className={`${styles.stateDot} ${(uiState === 'listening' || uiState === 'ai_speaking' || uiState === 'processing') ? styles.pulse : ''}`}
+                style={{ '--state-color': getStateColor(uiState) } as React.CSSProperties}
+              />
+              {getStateLabel(uiState)}
+            </div>
+            
+            <button className={styles.buttonOutline} onClick={finish}>
+              End interview
+            </button>
+          </div>
+
+          <button className={styles.transcriptToggle} onClick={() => setShowTranscript(!showTranscript)}>
+            {showTranscript ? 'Hide transcript' : 'Show transcript'}
+          </button>
+
+          {showTranscript && (
+            <div className={styles.transcriptPanel}>
+              {messages.map((m, i) => (
+                <div 
+                  key={i} 
+                  className={`${styles.message} ${m.role === 'interviewer' ? styles.interviewerMessage : styles.candidateMessage}`}
+                >
+                  {m.content}
+                </div>
+              ))}
             </div>
           )}
-        </div>
-
-        {mode === 'voice' && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start' }}>
-            <div style={{ width: '100%', aspectRatio: '16/9', background: '#000', borderRadius: '8px', overflow: 'hidden' }}>
-              <video 
-                ref={videoRef}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                autoPlay 
-                playsInline
-              />
-            </div>
-            <p style={{ color: '#666', marginTop: '0.5rem', textTransform: 'capitalize' }}>
-              State: {uiState}
-            </p>
-          </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   )
 }
